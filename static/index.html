@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIVE ODDS SCANNER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #07090e;
+    --bg-card:   #0b0e15;
+    --border:    #181d28;
+    --border-hi: #242c3d;
+    --text:      #bcc6d8;
+    --dim:       #3d4a60;
+    --label:     #6b7a94;
+    --live:      #ff6820;
+    --up:        #00e07a;
+    --down:      #ff2d54;
+    --neutral:   #4a9eff;
+    --cs:        #f0a020;
+    --dota:      #c8415a;
+    --lol:       #2080f0;
+    --valo:      #ff4655;
+    --cgp-col:   #9b6dff;
+    --wl-col:    #00c6ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Martian Mono', monospace;
+    font-size: 11px;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);
+    pointer-events: none; z-index: 9999;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; height: 40px;
+    background: rgba(7,9,14,0.96);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .header-title {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .header-title span { color: var(--live); }
+  .header-sep { flex: 1; }
+  .conn-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 9px; letter-spacing: 0.1em;
+    color: var(--label); text-transform: uppercase;
+  }
+  .conn-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--dim); transition: background 0.3s;
+  }
+  .conn-dot.live  { background: var(--up);   box-shadow: 0 0 6px var(--up); }
+  .conn-dot.error { background: var(--down); }
+
+  /* ── COLUMN HEADERS BAR ── */
+  .col-bar {
+    position: sticky; top: 40px; z-index: 90;
+    display: grid; grid-template-columns: 1fr 1fr;
+    background: rgba(7,9,14,0.97);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .col-bar-half {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; height: 34px;
+    border-right: 1px solid var(--border);
+  }
+  .col-bar-half:last-child { border-right: none; }
+  .col-bar-half::before {
+    content: ''; display: block;
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .col-bar-half.cgp::before { background: var(--cgp-col); box-shadow: 0 0 6px var(--cgp-col); }
+  .col-bar-half.wl::before  { background: var(--wl-col);  box-shadow: 0 0 6px var(--wl-col); }
+  .col-platform {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .col-bar-half.cgp .col-platform { color: var(--cgp-col); }
+  .col-bar-half.wl  .col-platform { color: var(--wl-col); }
+  .col-count {
+    font-size: 8px; color: var(--label); letter-spacing: 0.08em;
+  }
+  .col-count span { color: var(--text); font-weight: 600; }
+
+  /* ── MAIN ── */
+  main {
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  /* ── EVENT ROW ── */
+  .event-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .row-slot { min-height: 0; }
+  .row-slot.empty {
+    border: 1px dashed var(--border);
+    min-height: 60px;
+    opacity: 0.3;
+  }
+
+  /* ── MATCHED INDICATOR ── */
+  .event-row.matched .row-slot:not(.empty) .card {
+    border-color: rgba(0,198,255,0.12);
+  }
+
+  /* section divider */
+  .section-divider {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    margin-top: 4px;
+  }
+  .section-divider-label {
+    font-size: 8px; color: var(--dim);
+    letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 4px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    position: relative; overflow: hidden;
+    transition: border-color 0.2s, opacity 0.4s;
+  }
+  .card:hover { border-color: var(--border-hi); }
+
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  }
+  /* Live cards: спортивный цвет */
+  .card.sport-dota2::before,
+  .card.sport-dota_2::before             { background: var(--dota); }
+  .card.sport-cs2::before,
+  .card.sport-counter-strike::before     { background: var(--cs); }
+  .card.sport-lol::before,
+  .card.sport-league_of_legends::before  { background: var(--lol); }
+  .card.sport-valorant::before           { background: var(--valo); }
+  /* Pre-live cards: синяя полоска поверх */
+  .card.status-upcoming::before          { background: var(--neutral) !important; opacity: 0.7; }
+  .card.status-upcoming                  { border-color: rgba(74,158,255,0.18); }
+
+  .card-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sport-badge {
+    font-size: 8px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 2px 5px; border: 1px solid currentColor; opacity: 0.85;
+  }
+  .sport-badge.sport-dota2,
+  .sport-badge.sport-dota_2             { color: var(--dota); }
+  .sport-badge.sport-cs2,
+  .sport-badge.sport-counter-strike     { color: var(--cs); }
+  .sport-badge.sport-lol,
+  .sport-badge.sport-league_of_legends  { color: var(--lol); }
+  .sport-badge.sport-valorant           { color: var(--valo); }
+  .sport-badge.sport-ml                 { color: var(--neutral); }
+
+  .tournament-name {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 11px; font-weight: 500;
+    color: var(--label); letter-spacing: 0.04em;
+    text-transform: uppercase; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .live-pill {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.15em; color: var(--live);
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  .prelive-pill {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.15em; color: var(--neutral);
+  }
+  @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .teams-row {
+    display: flex; align-items: center;
+    padding: 8px 12px 7px; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .team {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: 0.02em; text-transform: uppercase;
+    color: var(--text); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .team.away { text-align: right; }
+  .vs-sep { font-size: 9px; color: var(--dim); letter-spacing: 0.1em; flex-shrink: 0; }
+
+  .market-col-header {
+    display: grid; grid-template-columns: 72px 1fr 1fr;
+    padding: 4px 12px 3px;
+    border-bottom: 1px solid var(--border);
+  }
+  .col-label {
+    font-size: 8px; font-weight: 600;
+    letter-spacing: 0.12em; color: var(--dim);
+    text-transform: uppercase;
+  }
+  .col-label.right { text-align: right; }
+
+  .market-row {
+    display: grid; grid-template-columns: 72px 1fr 1fr;
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s;
+  }
+  .market-row:last-child { border-bottom: none; }
+  .market-row:hover { background: rgba(255,255,255,0.02); }
+
+  .market-label {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 0.06em; color: var(--label);
+    text-transform: uppercase;
+  }
+
+  .mkt-badge {
+    font-size: 7px; font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1px 4px; border-radius: 2px; flex-shrink: 0;
+  }
+  .live-badge { background: rgba(255,104,32,0.22); color: var(--live); border: 1px solid rgba(255,104,32,0.3); }
+  .pre-badge  { background: rgba(74,158,255,0.18); color: var(--neutral); border: 1px solid rgba(74,158,255,0.3); }
+
+  .odds-cell {
+    display: flex; align-items: center; gap: 4px;
+    padding: 2px 4px; position: relative; transition: background 0.2s;
+  }
+  .odds-cell.right { justify-content: flex-end; }
+  .odds-value {
+    font-size: 13px; font-weight: 600; letter-spacing: -0.02em;
+    color: var(--text); transition: color 0.4s; min-width: 34px;
+  }
+  .odds-cell.right .odds-value { text-align: right; }
+  .odds-arrow { font-size: 9px; opacity: 0; transition: opacity 0.3s; flex-shrink: 0; }
+  .odds-prev  { font-size: 8px; opacity: 0; color: var(--label); text-decoration: line-through; white-space: nowrap; }
+
+  @keyframes flashUp   { 0%{background:rgba(0,224,122,0.25)} 100%{background:transparent} }
+  @keyframes flashDown { 0%{background:rgba(255,45,84,0.25)}  100%{background:transparent} }
+  @keyframes showFade  { 0%{opacity:0.6} 60%{opacity:0.6} 100%{opacity:0} }
+
+  .flash-up   { animation: flashUp   1.8s ease-out forwards; }
+  .flash-down { animation: flashDown 1.8s ease-out forwards; }
+  .odds-cell.up   .odds-value { color: var(--up); }
+  .odds-cell.down .odds-value { color: var(--down); }
+  .odds-cell.up   .odds-arrow,
+  .odds-cell.down .odds-arrow { animation: showFade 1.8s ease-out forwards; }
+  .odds-cell.up   .odds-prev,
+  .odds-cell.down .odds-prev  { animation: showFade 1.8s ease-out forwards; }
+
+  .card-footer {
+    padding: 4px 12px;
+    display: flex; align-items: center; justify-content: flex-end;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.15);
+  }
+  .last-update { font-size: 8px; color: var(--dim); letter-spacing: 0.06em; }
+
+  .empty-main {
+    padding: 80px 0; text-align: center; color: var(--dim);
+    grid-column: 1 / -1;
+  }
+  .empty-main p { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 12px; }
+  .empty-dot {
+    display: inline-block; width: 4px; height: 4px;
+    background: var(--dim); border-radius: 50%; margin: 0 3px;
+    animation: emptyPulse 1.4s ease-in-out infinite;
+  }
+  .empty-dot:nth-child(2) { animation-delay: 0.2s; }
+  .empty-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes emptyPulse { 0%,80%,100%{opacity:0.2;transform:scale(0.8)} 40%{opacity:1;transform:scale(1.2)} }
+
+  /* ── ARB PANEL ── */
+  .arb-panel {
+    border-bottom: 2px solid var(--border);
+    background: rgba(7,9,14,0.98);
+  }
+  .arb-toolbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 20px; height: 36px;
+    border-bottom: 1px solid var(--border);
+  }
+  .arb-toolbar-label {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--dim);
+  }
+  .arb-count-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .arb-count-badge .cnt {
+    font-size: 10px; font-weight: 700; min-width: 18px; text-align: center;
+  }
+  .arb-count-badge.has-forks    { color: var(--up); }
+  .arb-count-badge.has-forks .cnt { text-shadow: 0 0 10px var(--up); }
+  .arb-count-badge.has-preforks { color: var(--cs); }
+  .arb-sep { width: 1px; height: 14px; background: var(--border); }
+  .arb-toolbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .arb-threshold-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
+  .arb-threshold-input {
+    background: var(--border); border: 1px solid var(--border-hi);
+    color: var(--text); font-family: 'Martian Mono', monospace;
+    font-size: 9px; padding: 2px 6px; width: 52px;
+    outline: none; text-align: center;
+  }
+  .arb-threshold-input:focus { border-color: var(--neutral); }
+
+  .arb-list {
+    padding: 10px 20px 12px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .arb-list.empty-arbs { display: none; }
+
+  /* ── ARB CARD ── */
+  .arb-card {
+    width: 340px; flex-shrink: 0;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    position: relative; overflow: hidden;
+  }
+  .arb-card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .arb-card.fork::after   { background: var(--up); box-shadow: 0 0 12px var(--up); }
+  .arb-card.prefork::after { background: var(--cs); }
+
+  /* Анимация убрана — она вызывала мерцание при каждом пересоздании innerHTML */
+
+  /* card header */
+  .arb-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .arb-card-meta { display: flex; align-items: center; gap: 5px; }
+  .arb-sport-badge {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+    padding: 1px 4px; border: 1px solid currentColor; opacity: 0.85;
+  }
+  .arb-sport-badge.sport-cs2, .arb-sport-badge.sport-counter-strike { color: var(--cs); }
+  .arb-sport-badge.sport-dota2, .arb-sport-badge.sport-dota_2       { color: var(--dota); }
+  .arb-sport-badge.sport-lol, .arb-sport-badge.sport-league_of_legends { color: var(--lol); }
+  .arb-sport-badge.sport-valorant { color: var(--valo); }
+  .arb-sport-badge.sport-unknown  { color: var(--dim); }
+  .arb-mkt-lbl {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--label); text-transform: uppercase;
+  }
+  .arb-card-result { text-align: right; }
+  .arb-card-profit {
+    font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1;
+  }
+  .arb-card.fork   .arb-card-profit { color: var(--up); }
+  .arb-card.prefork .arb-card-profit { color: var(--cs); }
+  .arb-card-type {
+    font-size: 7px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--dim); margin-top: 1px;
+  }
+  .arb-card.fork   .arb-card-type { color: var(--up); opacity: 0.7; }
+  .arb-card.prefork .arb-card-type { color: var(--cs); opacity: 0.7; }
+
+  /* card body: two bet slots */
+  .arb-card-body {
+    display: grid; grid-template-columns: 1fr 1fr;
+  }
+  .arb-bet-slot {
+    padding: 8px 10px 10px;
+    position: relative;
+  }
+  .arb-bet-slot:first-child { border-right: 1px solid var(--border); }
+
+  /* platform header inside slot */
+  .arb-slot-platform {
+    display: flex; align-items: center; gap: 5px;
+    margin-bottom: 6px;
+  }
+  .arb-platform-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .arb-platform-dot.cgp { background: var(--cgp-col); box-shadow: 0 0 5px var(--cgp-col); }
+  .arb-platform-dot.wl  { background: var(--wl-col);  box-shadow: 0 0 5px var(--wl-col); }
+  .arb-platform-name {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .arb-bet-slot.slot-cgp .arb-platform-name { color: var(--cgp-col); }
+  .arb-bet-slot.slot-wl  .arb-platform-name { color: var(--wl-col); }
+
+  /* team name inside slot */
+  .arb-slot-team {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 14px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.03em; color: var(--text); line-height: 1.1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  /* odds inside slot */
+  .arb-slot-odds {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
+  }
+  .arb-card.fork   .arb-slot-odds { color: var(--up); }
+  .arb-card.prefork .arb-slot-odds { color: var(--text); }
+
+  /* pre-fork delta hint */
+  .arb-slot-mkt {
+    font-size: 8px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--label);
+    margin-bottom: 4px; line-height: 1.3;
+  }
+  .arb-bet-slot.slot-cgp .arb-slot-mkt { color: rgba(155,109,255,0.7); }
+  .arb-bet-slot.slot-wl  .arb-slot-mkt { color: rgba(0,198,255,0.7);   }
+
+  .arb-slot-delta {
+    font-size: 8px; color: var(--cs); margin-top: 3px;
+    letter-spacing: 0.04em;
+  }
+  .arb-slot-delta.needed {
+    color: var(--cs);
+  }
+  .arb-slot-delta.ok {
+    color: var(--dim);
+  }
+
+  .arb-card-teams {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.03em; color: var(--text);
+    padding: 4px 10px 5px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .arb-card-teams .vs { color: var(--dim); font-size: 9px; }
+
+  /* ── НОВОЕ: Банк + Калькулятор ── */
+  .arb-bank-label { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--label); }
+  .arb-bank-input {
+    background: var(--border); border: 1px solid var(--border-hi);
+    color: var(--text); font-family: 'Martian Mono', monospace;
+    font-size: 9px; padding: 2px 6px; width: 72px;
+    outline: none; text-align: right;
+  }
+  .arb-bank-input:focus { border-color: var(--up); }
+  .arb-bank-currency { font-size: 9px; color: var(--label); }
+
+  /* ── НОВОЕ: Звук ── */
+  .arb-sound-btn {
+    background: none; border: 1px solid var(--border);
+    color: var(--dim); cursor: pointer; font-size: 11px;
+    padding: 2px 7px; transition: all 0.2s; line-height: 1;
+  }
+  .arb-sound-btn.on  { color: var(--up); border-color: var(--up); }
+  .arb-sound-btn:hover { border-color: var(--border-hi); }
+
+  /* ── НОВОЕ: Возраст вилки ── */
+  .arb-card-age {
+    font-size: 8px; color: var(--dim);
+    letter-spacing: 0.06em; white-space: nowrap;
+    padding: 2px 6px; border: 1px solid var(--border);
+    margin-left: 6px; min-width: 36px; text-align: center;
+  }
+  .arb-card-age.fresh  { color: var(--up);   border-color: rgba(0,224,122,0.3); }
+  .arb-card-age.medium { color: var(--cs);   border-color: rgba(240,160,32,0.3); }
+  .arb-card-age.old    { color: var(--label); border-color: var(--border); }
+
+  /* ── НОВОЕ: Сумма ставки в слоте ── */
+  .arb-slot-bet {
+    margin-top: 5px; font-size: 9px; color: var(--label);
+    letter-spacing: 0.04em;
+  }
+  .arb-slot-bet .bet-sum {
+    font-weight: 700; font-size: 11px; color: var(--text);
+  }
+  .arb-bet-slot.slot-cgp .arb-slot-bet .bet-sum { color: var(--cgp-col); }
+  .arb-bet-slot.slot-wl  .arb-slot-bet .bet-sum { color: var(--wl-col); }
+
+  /* ── НОВОЕ: Футер калькулятора ── */
+  .arb-calc-footer {
+    padding: 5px 10px 6px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .arb-calc-profit {
+    font-size: 10px; font-weight: 700; color: var(--up);
+    letter-spacing: 0.04em;
+  }
+  .arb-card.prefork .arb-calc-profit { color: var(--label); }
+  .arb-calc-return {
+    font-size: 8px; color: var(--dim); letter-spacing: 0.04em;
+  }
+
+  /* ── НОВОЕ: Ссылка-слот (кликабельный) ── */
+  .arb-bet-link {
+    display: block; text-decoration: none; color: inherit;
+    padding: 8px 10px 10px;
+    transition: background 0.15s;
+  }
+  .arb-bet-link:hover { background: rgba(255,255,255,0.03); }
+  .arb-bet-link:first-child { border-right: 1px solid var(--border); }
+  .arb-bet-link .arb-slot-platform { margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  /* Переопределяем padding для slot внутри ссылки */
+  .arb-card-body .arb-bet-link .arb-slot-mkt {
+    font-size: 8px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 4px; line-height: 1.3;
+  }
+  .arb-card-body .arb-bet-link.slot-cgp .arb-slot-mkt { color: rgba(155,109,255,0.7); }
+  .arb-card-body .arb-bet-link.slot-wl  .arb-slot-mkt { color: rgba(0,198,255,0.7); }
+  .arb-card-body .arb-bet-link.slot-cgp .arb-platform-name { color: var(--cgp-col); }
+  .arb-card-body .arb-bet-link.slot-wl  .arb-platform-name { color: var(--wl-col); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">ODDS <span>SCANNER</span></div>
+  <div class="header-sep"></div>
+  <div class="conn-status">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connLabel">ПОДКЛЮЧЕНИЕ</span>
+  </div>
+</header>
+
+<div class="col-bar">
+  <div class="col-bar-half cgp">
+    <span class="col-platform">CSGOPositive</span>
+    <span class="col-count">LIVE <span id="count-cgp-live">0</span></span>
+    <span class="col-count" style="color:var(--neutral)">PRE <span id="count-cgp-pre">0</span></span>
+  </div>
+  <div class="col-bar-half wl">
+    <span class="col-platform">Winline</span>
+    <span class="col-count">LIVE <span id="count-wl-live">0</span></span>
+    <span class="col-count" style="color:var(--neutral)">PRE <span id="count-wl-pre">0</span></span>
+  </div>
+</div>
+
+<div class="arb-panel" id="arbPanel">
+  <div class="arb-toolbar">
+    <span class="arb-toolbar-label">СКАНЕР</span>
+    <div class="arb-sep"></div>
+    <span class="arb-count-badge" id="forkBadge">
+      ВИЛКИ <span class="cnt" id="forksCount">0</span>
+    </span>
+    <div class="arb-sep"></div>
+    <span class="arb-count-badge" id="preforkBadge">
+      ПРЕДВИЛКИ <span class="cnt" id="preforksCount">0</span>
+    </span>
+    <div class="arb-toolbar-right">
+      <span class="arb-bank-label">БАНК</span>
+      <input type="number" class="arb-bank-input" id="bankAmount" value="1000" min="1" step="100">
+      <span class="arb-bank-currency">₽</span>
+      <div class="arb-sep"></div>
+      <span class="arb-threshold-label">ПОРОГ Δ</span>
+      <input type="number" class="arb-threshold-input" id="preforkThreshold" value="0.5" step="0.05" min="0.05" max="3">
+      <div class="arb-sep"></div>
+      <button class="arb-sound-btn on" id="soundBtn" title="Звук при вилке">🔊</button>
+      <button class="arb-sound-btn" id="notifBtn" title="Системные уведомления при вилке">🔔</button>
+    </div>
+  </div>
+  <div class="arb-list empty-arbs" id="arbList"></div>
+</div>
+
+<main id="main">
+  <div class="empty-main">
+    <span class="empty-dot"></span><span class="empty-dot"></span><span class="empty-dot"></span>
+    <p>ОЖИДАНИЕ ДАННЫХ</p>
+  </div>
+</main>
+
+<script>
+  const events  = {};   // eventId → event data
+  const odds    = {};   // oddsKey → float
+  const cardEls = {};   // eventId → DOM element (.card)
+
+  // ── Team matching ─────────────────────────────────────────────
+
+  function normName(s) {
+    return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  // Chunk-abbreviation: letters of the short form match the first letter of
+  // equal-length chunks of the longer form.
+  // "FB" vs "favbet": step=3 → full[0]='f'✓  full[3]='b'✓
+  // "NV" vs "navi":   step=2 → full[0]='n'✓  full[2]='v'✓
+  function chunkAbbrev(abbr, full) {
+    const la = abbr.length, lf = full.length;
+    if (la < 2 || la >= lf) return false;
+    const step = lf / la;
+    for (let i = 0; i < la; i++) {
+      const pos = Math.round(i * step);
+      if (pos >= lf || full[pos] !== abbr[i]) return false;
+    }
+    return true;
+  }
+
+  function teamMatch(a, b) {
+    if (!a || !b) return false;
+
+    // --- 1. АНТИ-АКАДЕМ ФИЛЬТР (Броня) ---
+    // Проверяем ДО любых обрезаний и слияний строк!
+    const lowerA = a.toLowerCase();
+    const lowerB = b.toLowerCase();
+
+    // Список слов-маркеров вторых составов
+    const stopMarkers = ["academy", "junior", " jr", "youth", "nxt", " fe", "female", "wmn", "prodigy", "young"];
+
+    for (let marker of stopMarkers) {
+        const hasA = lowerA.includes(marker);
+        const hasB = lowerB.includes(marker);
+        // Если маркер есть только у одной команды - это разные составы! Блокируем.
+        if (hasA !== hasB) {
+            return false;
+        }
+    }
+    // ------------------------------------
+
+    const na = normName(a), nb = normName(b);
+    if (na === nb) return true;
+
+    // Прямое вхождение (теперь оно безопасно, так как академки отсеялись выше)
+    if (na.includes(nb) || nb.includes(na)) return true;
+
+    // Разбиваем названия на отдельные слова
+    const wa = a.toLowerCase().split(/[\s\.\-_]+/).filter(Boolean);
+    const wb = b.toLowerCase().split(/[\s\.\-_]+/).filter(Boolean);
+
+    // Проверка аббревиатур (Natus Vincere -> NV)
+    if (wa.length === 1 && wb.length > 1) {
+      if (wa[0] === wb.map(w => w[0]).join('')) return true;
+    }
+    if (wb.length === 1 && wa.length > 1) {
+      if (wb[0] === wa.map(w => w[0]).join('')) return true;
+    }
+    if (chunkAbbrev(na, nb) || chunkAbbrev(nb, na)) return true;
+
+    // --- УМНОЕ СРАВНЕНИЕ СЛОВ ---
+    let common = 0;
+    // ВАЖНО: Я убрал 'academy' из этого списка, чтобы оно больше не считалось мусором!
+    const generic = ['team', 'esports', 'club', 'gaming', 'the', 'fc'];
+
+    for (const w of wa) {
+      if (wb.includes(w) && !generic.includes(w)) {
+          common++;
+      }
+    }
+
+    // Если совпало хотя бы 2 слова
+    if (common >= 2) return true;
+
+    // Если совпало 1 уникальное слово (длиннее 3 букв)
+    if (common === 1) {
+       const matchingWord = wa.find(w => wb.includes(w) && !generic.includes(w));
+       if (matchingWord && matchingWord.length > 3) return true;
+    }
+
+    return false;
+  }
+
+  function eventsMatch(cgp, wl) {
+    return (teamMatch(cgp.home_team, wl.home_team) && teamMatch(cgp.away_team, wl.away_team)) ||
+           (teamMatch(cgp.home_team, wl.away_team) && teamMatch(cgp.away_team, wl.home_team));
+  }
+
+  function matchOrientation(cgp, wl) {
+    // Проверяем все возможные пересечения команд
+    const hh = teamMatch(cgp.home_team, wl.home_team); // Хозяева совпали с хозяевами
+    const aa = teamMatch(cgp.away_team, wl.away_team); // Гости совпали с гостями
+    const ha = teamMatch(cgp.home_team, wl.away_team); // Хозяева совпали с гостями (перекрестно)
+    const ah = teamMatch(cgp.away_team, wl.home_team); // Гости совпали с хозяевами (перекрестно)
+
+    // Если совпала хотя бы ОДНА команда, и они стоят на своих местах (прямой порядок)
+    if (hh || aa) return false;
+
+    // Если совпала хотя бы ОДНА команда, но конторы перепутали их местами (перекрестный порядок)
+    if (ha || ah) return true;
+
+    return null; // Совпадений нет вообще
+  }
+
+  function normSport(s) {
+    if (!s) return '';
+    const t = s.toLowerCase().replace(/[\s_\-]+/g, ''); // normalize separators
+    if (t === 'cs2' || t.includes('counterstrike') || t.includes('counter')) return 'cs';
+    if (t.includes('dota')) return 'dota2';
+    if (t === 'lol' || t.includes('leagueoflegends') || t.includes('league')) return 'lol';
+    if (t.includes('valorant')) return 'valorant';
+    if (t === 'ml' || t.includes('mobilelegends') || t.includes('mobile')) return 'ml';
+    if (t.startsWith('unknown')) return ''; // CGP unknown app_id → wildcard, rely on team name
+    return t;
+  }
+
+  function sportCls(s) {
+    const n = normSport(s);
+    const map = { cs:'cs2', lol:'lol', dota2:'dota2', valorant:'valorant', ml:'ml' };
+    return map[n] || s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function computeMatches() {
+    const cgpList = Object.values(events).filter(e => e.platform === 'csgopositive');
+    const wlList  = Object.values(events).filter(e => e.platform === 'winline');
+    const matched = [], usedCgp = new Set(), usedWl = new Set();
+
+    for (const cgp of cgpList) {
+      for (const wl of wlList) {
+        if (usedCgp.has(cgp.event_id) || usedWl.has(wl.event_id)) continue;
+        const cgpSport = normSport(cgp.sport), wlSport = normSport(wl.sport);
+        if (cgpSport && wlSport && cgpSport !== wlSport) continue;
+        const swap = matchOrientation(cgp, wl);
+        if (swap !== null) {
+          matched.push({ cgp, wl, swapped: swap });
+          usedCgp.add(cgp.event_id);
+          usedWl.add(wl.event_id);
+          break;
+        }
+      }
+    }
+    return {
+      matched,
+      unmatchedCgp: cgpList.filter(e => !usedCgp.has(e.event_id)),
+      unmatchedWl:  wlList.filter(e => !usedWl.has(e.event_id)),
+    };
+  }
+
+  // ── Банк и калькулятор ────────────────────────────────────────
+
+  let bankAmount = parseFloat(localStorage.getItem('bankAmount') || '1000');
+  document.getElementById('bankAmount').value = bankAmount;
+  document.getElementById('bankAmount').addEventListener('input', e => {
+    bankAmount = parseFloat(e.target.value) || 1000;
+    localStorage.setItem('bankAmount', bankAmount);
+    computeArbs();
+  });
+
+  function calcBets(bank, k1, k2) {
+    // Для реальных вилок — точный расчёт прибыли
+    // Для предвилок — пропорциональный расчёт (оптимальное распределение)
+    const arb  = 1/k1 + 1/k2;
+    const ret  = bank / arb;
+    const s1   = ret / k1;
+    const s2   = ret / k2;
+    const prof = ret - bank;
+    return {
+      s1:     Math.round(s1),
+      s2:     Math.round(s2),
+      profit: prof.toFixed(2),
+      ret:    ret.toFixed(2),
+      isArb:  arb < 1,
+    };
+  }
+
+  // ── Звуковые уведомления ───────────────────────────────────────
+
+  let soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+  let audioCtx = null;
+  const soundBtn = document.getElementById('soundBtn');
+  soundBtn.classList.toggle('on', soundEnabled);
+
+  // Инициализируем AudioContext при КАЖДОМ клике (Chrome приостанавливает его)
+  document.addEventListener('click', () => {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e) { return; }
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  });
+
+  soundBtn.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    soundBtn.classList.toggle('on', soundEnabled);
+    localStorage.setItem('soundEnabled', soundEnabled);
+    // Тестовый звук при включении чтобы убедиться что работает
+    if (soundEnabled) {
+      setTimeout(() => {
+        if (audioCtx && audioCtx.state === 'running') _beep(660, 0.12, 0.4, 0);
+      }, 50);
+    }
+  });
+
+  function _beep(freq, dur, vol, delay) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const t    = audioCtx.currentTime + delay;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type            = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.start(t);
+    osc.stop(t + dur + 0.01);
+  }
+
+  function playForkSound() {
+    if (!soundEnabled || !audioCtx || audioCtx.state !== 'running') return;
+    _beep(660, 0.12, 0.4, 0);
+    _beep(880, 0.18, 0.5, 0.15);
+  }
+
+  function playPreforkSound() {
+    // Предвилки — без звука
+  }
+
+  // ── Браузерные уведомления ─────────────────────────────────────
+
+  let notifEnabled = localStorage.getItem('notifEnabled') === 'true';
+  const notifBtn = document.getElementById('notifBtn');
+
+  // Восстанавливаем состояние: если разрешение уже было дано — включаем сразу
+  if (notifEnabled && 'Notification' in window && Notification.permission === 'granted') {
+    notifBtn.classList.add('on');
+  } else if (notifEnabled && Notification.permission !== 'granted') {
+    // Разрешение отозвали — сбрасываем
+    notifEnabled = false;
+    localStorage.setItem('notifEnabled', 'false');
+  }
+
+  notifBtn.addEventListener('click', async () => {
+    if (!('Notification' in window)) {
+      showToast('❌ Браузер не поддерживает уведомления');
+      return;
+    }
+
+    if (!notifEnabled) {
+      // Запрашиваем разрешение
+      let perm = Notification.permission;
+      if (perm === 'default') {
+        perm = await Notification.requestPermission();
+      }
+      if (perm === 'granted') {
+        notifEnabled = true;
+        notifBtn.classList.add('on');
+        localStorage.setItem('notifEnabled', 'true');
+        // Тестовое уведомление
+        new Notification('✅ Уведомления включены', {
+          body: 'Теперь при появлении вилки придёт уведомление',
+          tag: 'arb-scanner-test',
+          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎯</text></svg>',
+        });
+        showToast('🔔 Уведомления включены');
+      } else {
+        showToast('❌ Разрешение отклонено. Разреши в настройках браузера.');
+      }
+    } else {
+      notifEnabled = false;
+      notifBtn.classList.remove('on');
+      localStorage.setItem('notifEnabled', 'false');
+      showToast('🔕 Уведомления выключены');
+    }
+  });
+
+  function showForkNotification(entry) {
+    if (!notifEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (entry.profit === undefined) return; // Только реальные вилки
+
+    const { cgp, cgpMkt } = entry;
+    const sport  = (cgp.sport || '').toUpperCase().slice(0, 3) || '?';
+    const period = cgpMkt.market_type === 'match_winner' ? 'МАТЧ'
+                 : `КАРТА ${cgpMkt.period.match(/map_(\d+)/)?.[1] || '?'}`;
+    const profit = `+${entry.profit.toFixed(2)}%`;
+
+    const notif = new Notification(`🎯 ВИЛКА ${profit} · ${sport} ${period}`, {
+      body: `${cgp.home_team} vs ${cgp.away_team}`,
+      tag:  `arb_${forkId(entry)}`,   // не дублируем одну и ту же вилку
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎯</text></svg>',
+      requireInteraction: false,
+    });
+
+    // Клик на уведомление → фокус на вкладке сканера
+    notif.onclick = () => {
+      window.focus();
+      notif.close();
+    };
+
+    // Авто-закрытие через 8 секунд
+    setTimeout(() => notif.close(), 8000);
+  }
+
+  // ── Таймер возраста вилок ──────────────────────────────────────
+
+  const forkFirstSeen = {};  // forkId → Date.now()
+  const forkSoundAt   = {};  // forkId → последний раз когда играл звук
+
+  // ВАЖНО: ID не зависит от k1_src/k2_src.
+  // Раньше k1_src менялся при колебании кэфов → ID менялся → звук каждый раз!
+  function forkId(entry) {
+    return `${entry.cgp.event_id}:${entry.wl.event_id}:${entry.cgpMkt.period}`;
+  }
+
+  let lastAnySoundAt = 0;
+  const SOUND_THROTTLE   = 3000;   // Глобально: не чаще 1 раза в 3 сек
+  const SOUND_COOLDOWN   = 60000;  // На одну вилку: не чаще 1 раза в 60 сек
+
+  function tryForkSound(id, entry) {
+    // Вилка должна быть стабильной хотя бы 3 секунды до звука/уведомления.
+    // Это предотвращает ложные уведомления от мерцающих вилок (флике на 1 кадр).
+    if (forkAge(id) < 3) return;
+
+    const now = Date.now();
+    if (now - lastAnySoundAt < SOUND_THROTTLE) return;
+    if (forkSoundAt[id] && now - forkSoundAt[id] < SOUND_COOLDOWN) return;
+    forkSoundAt[id] = now;
+    lastAnySoundAt  = now;
+    playForkSound();
+    if (entry) showForkNotification(entry);
+  }
+
+  function forkAge(id) {
+    return forkFirstSeen[id] ? Math.floor((Date.now() - forkFirstSeen[id]) / 1000) : 0;
+  }
+
+  function formatAge(secs) {
+    if (secs < 60) return `${secs}с`;
+    return `${Math.floor(secs/60)}м${secs%60}с`;
+  }
+
+  function ageClass(secs) {
+    if (secs < 15) return 'fresh';
+    if (secs < 60) return 'medium';
+    return 'old';
+  }
+
+  // Обновляем таймеры каждую секунду
+  setInterval(() => {
+    document.querySelectorAll('.arb-card-age[data-fid]').forEach(el => {
+      const id  = el.getAttribute('data-fid');
+      const age = forkAge(id);
+      el.textContent = formatAge(age);
+      el.className = `arb-card-age ${ageClass(age)}`;
+    });
+  }, 1000);
+
+  // ── Winline URL builder ───────────────────────────────────────
+
+  // Маппинг игр в URL-слаг Winline
+  const WL_GAME_SLUGS = {
+    'dota 2': 'dota_2', 'dota2': 'dota_2', 'dota': 'dota_2',
+    'cs2': 'counter-strike', 'cs': 'counter-strike',
+    'counter-strike': 'counter-strike', 'counter-strike 2': 'counter-strike',
+    'lol': 'league_of_legends', 'league of legends': 'league_of_legends', 'league': 'league_of_legends',
+    'valorant': 'valorant',
+    'mobile legends': 'mobile_legends', 'ml': 'mobile_legends',
+    'call of duty': 'call_of_duty', 'cod': 'call_of_duty',
+    'starcraft 2': 'starcraft_2', 'starcraft': 'starcraft_2',
+  };
+
+  function toSlug(s) {
+    return (s || '').toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')  // спецсимволы → пробел
+      .trim()
+      .replace(/\s+/g, '_');          // пробелы → подчёркивание
+  }
+
+  function buildWlUrl(sport, tournament, eventId) {
+    const gameKey  = (sport || '').toLowerCase().trim();
+    const gameSlug = WL_GAME_SLUGS[gameKey] || toSlug(sport);
+    const tournSlug = toSlug(tournament);
+    if (gameSlug && tournSlug) {
+      return `https://winline.ru/stavki/sport/kibersport/${gameSlug}/${tournSlug}/${eventId}`;
+    }
+    // Фоллбэк если нет данных о турнире
+    return `https://winline.ru/stavki/sport/kibersport/${eventId}`;
+  }
+
+  // ── Дебаунс + fingerprint пересчёта арбов ─────────────────────
+  //
+  // Проблема 1: каждый WS-фрейм → computeArbs() → list.innerHTML = новый HTML
+  //   При 10 фреймах/сек = 10 полных пересборок DOM = мерцание
+  //
+  // Проблема 2: CSS-анимация на .arb-card запускалась при каждом innerHTML =
+  //   → вилка "вспыхивала" даже когда не менялась
+  //
+  // Решение А: 300мс debounce — ждём пока WS-обновления устоятся
+  // Решение Б: fingerprint — пропускаем рендер если вилки не изменились
+
+  let _arbTimer = null;
+  let _lastArbFingerprint = '';
+
+  function scheduleArbs() {
+    clearTimeout(_arbTimer);
+    _arbTimer = setTimeout(computeArbs, 100);  // 100мс — баланс скорости и стабильности
+  }
+
+  // ── Arb engine ────────────────────────────────────────────────
+
+  function computeArbs() {
+  const threshold = parseFloat(document.getElementById('preforkThreshold').value) || 0.5;
+  const { matched } = computeMatches();
+  const forks = [], preforks = [];
+
+  // Pre-live данные Winline обновляются раз в ~80 сек (_prelive_scan_loop).
+  // Если данные старше 90 сек — не используем в арб-расчёте (стейл).
+  const WL_PRELIVE_MAX_AGE_MS = 90_000;
+  const now = Date.now();
+
+  for (const { cgp, wl, swapped } of matched) {
+    // Пропускаем если Winline pre-live данные устарели
+    if (wl.status === 'upcoming') {
+      const wlAge = now - (wl._updatedAt || 0);
+      if (wlAge > WL_PRELIVE_MAX_AGE_MS) continue;
+    }
+
+    for (const cgpMkt of cgp.markets) {
+      // Рынок CGP закрыт (is_open=false или явный замок)
+      if (cgpMkt.is_open === false) continue;
+
+      // 1. Получаем кэфы CGP
+      const cgpHome = cgpMkt.outcomes.find(o => o.outcome_type === 'home')?.odds;
+      const cgpAway = cgpMkt.outcomes.find(o => o.outcome_type === 'away')?.odds;
+
+      // Кэф ≤ 1 = замок или невалидное значение → вилки нет
+      // (даже если is_open ещё не обновился — защита от стейл данных)
+      if (!cgpHome || cgpHome <= 1 || !cgpAway || cgpAway <= 1) continue;
+
+      // 2. Ищем рынок на Винлайне
+      const wlMkt = wl.markets.find(m =>
+        m.market_type === cgpMkt.market_type && m.period === cgpMkt.period
+      );
+      if (!wlMkt) continue;
+
+      // Рынок Винлайна закрыт
+      if (wlMkt.is_open === false) continue;
+
+      // 3. Получаем кэфы Винлайна с учетом swapped (инверсии команд)
+      const wlK1 = swapped
+        ? wlMkt.outcomes.find(o => o.outcome_type === 'away')?.odds
+        : wlMkt.outcomes.find(o => o.outcome_type === 'home')?.odds;
+      const wlK2 = swapped
+        ? wlMkt.outcomes.find(o => o.outcome_type === 'home')?.odds
+        : wlMkt.outcomes.find(o => o.outcome_type === 'away')?.odds;
+
+      // Кэф ≤ 1 или отсутствует = рынок закрыт/невалиден → пропускаем
+      if (!wlK1 || wlK1 <= 1 || !wlK2 || wlK2 <= 1) continue;
+
+      const best_k1  = Math.max(cgpHome, wlK1);
+      const best_k2  = Math.max(cgpAway, wlK2);
+      const k1_src   = cgpHome >= wlK1 ? 'cgp' : 'wl';
+      const k2_src   = cgpAway >= wlK2 ? 'cgp' : 'wl';
+      if (k1_src === k2_src) continue;
+
+      // 4. Фильтр BO1: пропускаем если кэфы на карту ≈ кэфы на матч (та же ставка)
+      // Раньше: require map_2 → блокировал ВСЕХ map_1 во время игры 1-й карты BO3!
+      // Теперь: только проверяем что кэфы реально разные (карта ≠ матч)
+      if (cgpMkt.period !== 'full_match') {
+        const fm = cgp.markets.find(m => m.period === 'full_match');
+        if (fm) {
+          const fmHome = fm.outcomes.find(o => o.outcome_type === 'home')?.odds || 0;
+          const fmAway = fm.outcomes.find(o => o.outcome_type === 'away')?.odds || 0;
+          // Если кэфы на карту почти совпадают с кэфами на матч → BO1, пропускаем
+          if (fmHome > 0 && fmAway > 0 &&
+              Math.abs(fmHome - cgpHome) <= 0.08 &&
+              Math.abs(fmAway - cgpAway) <= 0.08) continue;
+        }
+      }
+
+      const arb = 1 / best_k1 + 1 / best_k2;
+      const entry = { cgp, wl, swapped, cgpMkt, cgpHome, cgpAway, wlK1, wlK2, best_k1, best_k2, k1_src, k2_src, arb };
+
+      if (arb < 1) {
+        entry.profit = (100 / arb) - 100;
+        forks.push(entry);
+      } else {
+        const k1_needed = 1 / (1 - 1 / best_k2);
+        const k2_needed = 1 / (1 - 1 / best_k1);
+        entry.delta = Math.min(k1_needed - best_k1, k2_needed - best_k2);
+        entry.delta1 = k1_needed - best_k1;
+        entry.delta2 = k2_needed - best_k2;
+        if (entry.delta <= threshold) preforks.push(entry);
+      }
+    }
+  }
+
+  forks.sort((a, b) => b.profit - a.profit);
+  preforks.sort((a, b) => a.delta - b.delta);
+
+  // Fingerprint: пропускаем renderArbs если вилки не изменились.
+  // Это предотвращает мерцание когда WS шлёт обновления без изменения вилок.
+  const fingerprint = [...forks, ...preforks].map(e =>
+    `${forkId(e)}:${e.profit?.toFixed(3) ?? e.delta?.toFixed(3)}:${e.best_k1.toFixed(2)}:${e.best_k2.toFixed(2)}`
+  ).join('|');
+
+  if (fingerprint === _lastArbFingerprint) return; // Вилки не изменились — не перестраиваем DOM
+  _lastArbFingerprint = fingerprint;
+
+  renderArbs(forks, preforks);
+}
+
+  function renderArbs(forks, preforks) {
+    const list         = document.getElementById('arbList');
+    const forksCount   = document.getElementById('forksCount');
+    const preCount     = document.getElementById('preforksCount');
+    const forkBadge    = document.getElementById('forkBadge');
+    const preforkBadge = document.getElementById('preforkBadge');
+
+    forksCount.textContent = forks.length;
+    preCount.textContent   = preforks.length;
+    forkBadge.className    = 'arb-count-badge' + (forks.length    ? ' has-forks'    : '');
+    preforkBadge.className = 'arb-count-badge' + (preforks.length ? ' has-preforks' : '');
+
+    const all = [...forks, ...preforks];
+    list.classList.toggle('empty-arbs', all.length === 0);
+    if (all.length === 0) { list.innerHTML = ''; return; }
+
+    // Отслеживаем вилки для таймера и звука
+    const currentForkIds = new Set();
+    forks.forEach(e => {
+      const id = forkId(e);
+      currentForkIds.add(id);
+      if (!forkFirstSeen[id]) forkFirstSeen[id] = Date.now();
+      tryForkSound(id, e);  // Throttled: не чаще 1р/3с глобально, 1р/60с на вилку
+    });
+    preforks.forEach(e => {
+      const id = forkId(e);
+      currentForkIds.add(id);
+      if (!forkFirstSeen[id]) forkFirstSeen[id] = Date.now();
+      // Предвилки — без звука
+    });
+    // Удаляем устаревшие записи
+    const now = Date.now();
+    Object.keys(forkFirstSeen).forEach(id => {
+      if (!currentForkIds.has(id)) delete forkFirstSeen[id];
+    });
+    Object.keys(forkSoundAt).forEach(id => {
+      if (now - forkSoundAt[id] > SOUND_COOLDOWN) delete forkSoundAt[id];
+    });
+
+    const SPORT_LABELS = {
+      dota2:'D2', dota_2:'D2', 'dota 2':'D2',
+      cs2:'CS2', 'counter-strike':'CS2', 'counter-strike 2':'CS2',
+      lol:'LOL', league_of_legends:'LOL', 'league of legends':'LOL', 'league':'LOL',
+      valorant:'VAL', ml:'ML', 'mobile legends':'ML',
+    };
+
+    list.innerHTML = all.map(entry => {
+      const { cgp, wl, swapped, cgpMkt, cgpHome, cgpAway, wlK1, wlK2, best_k1, best_k2, k1_src, k2_src } = entry;
+      const isFork   = entry.profit !== undefined;
+      const sport    = cgp.sport || '';
+      const sportLbl = SPORT_LABELS[sport.toLowerCase()] || normSport(sport).toUpperCase().slice(0,3) || '?';
+      const team1    = k1_src === 'cgp' ? cgp.home_team : (swapped ? wl.away_team : wl.home_team);
+      const team2    = k2_src === 'cgp' ? cgp.away_team : (swapped ? wl.home_team : wl.away_team);
+      const mktLbl   = cgpMkt.market_type === 'match_winner' ? 'МАТЧ'
+                     : (() => { const m = cgpMkt.period.match(/map_(\d+)/); return m ? `КАРТА ${m[1]}` : cgpMkt.period; })();
+      const liveLbl  = cgpMkt.is_live !== false
+        ? `<span class="mkt-badge live-badge">LIVE</span>`
+        : `<span class="mkt-badge pre-badge">PRE</span>`;
+
+      // 1. Возраст вилки
+      const fid  = forkId(entry);
+      const age  = forkAge(fid);
+      const ageCls = ageClass(age);
+      const ageHtml = `<div class="arb-card-age ${ageCls}" data-fid="${fid}">${formatAge(age)}</div>`;
+
+      // 2. Результат
+      const resultHtml = isFork
+        ? `<div class="arb-card-profit">+${entry.profit.toFixed(2)}%</div>
+           <div class="arb-card-type">ВИЛКА</div>`
+        : `<div class="arb-card-profit">Δ ${entry.delta.toFixed(3)}</div>
+           <div class="arb-card-type">ПРЕДВИЛКА</div>`;
+
+      // 3. Калькулятор ставок (показываем для ВСЕХ — вилок и предвилок)
+      const bets = calcBets(bankAmount, best_k1, best_k2);
+      const calcFooter = isFork
+        ? `<div class="arb-calc-footer">
+             <span class="arb-calc-profit">💰 Прибыль: ${bets.profit} ₽</span>
+             <span class="arb-calc-return">Возврат: ${bets.ret} ₽</span>
+           </div>`
+        : `<div class="arb-calc-footer">
+             <span class="arb-calc-profit" style="color:var(--label)">Распределение банка</span>
+             <span class="arb-calc-return">${bets.s1} ₽ / ${bets.s2} ₽</span>
+           </div>`;
+
+      // 4. Суммы ставок в слотах
+      const bet1Html = `<div class="arb-slot-bet">Ставь: <span class="bet-sum">${bets.s1} ₽</span></div>`;
+      const bet2Html = `<div class="arb-slot-bet">Ставь: <span class="bet-sum">${bets.s2} ₽</span></div>`;
+
+      // 5. Прямые ссылки на БК
+      // WL: формат /stavki/sport/kibersport/{игра}/{турнир}/{id}
+      // Пример: https://winline.ru/stavki/sport/kibersport/dota_2/blast_slam/15888383
+      const wlId = wl.event_id.replace('wl_', '');
+      const wlUrl = buildWlUrl(wl.sport, wl.tournament, wlId);
+      // CGP: нет прямых deep links (ставки открываются как JS-модалки на главной).
+      // При клике — открываем csgopositive.xyz и копируем матч в буфер.
+      const matchStr = `${cgp.home_team} vs ${cgp.away_team}`;
+      const cgpSlot  = 'cgp-open';   // специальный маркер
+      const slot1IsCgp = k1_src === 'cgp';
+      const slot2IsCgp = k2_src === 'cgp';
+      const slot1Url = slot1IsCgp ? '#' : wlUrl;
+      const slot2Url = slot2IsCgp ? '#' : wlUrl;
+
+      // 6. Маркет-лейблы
+      const mapNum      = cgpMkt.period.match(/map_(\d+)/);
+      const mktName     = cgpMkt.period === 'full_match' ? 'ПОБЕДА В МАТЧЕ' : `ПОБЕДА НА КАРТЕ ${mapNum?.[1]}`;
+
+      // Pre-fork delta hints
+      let delta1Hint = null, delta2Hint = null;
+      if (!isFork) {
+        if (entry.delta1 <= entry.delta2) {
+          delta1Hint = `<div class="arb-slot-delta needed">нужно +${entry.delta1.toFixed(3)}</div>`;
+          delta2Hint = `<div class="arb-slot-delta ok">ок</div>`;
+        } else {
+          delta2Hint = `<div class="arb-slot-delta needed">нужно +${entry.delta2.toFixed(3)}</div>`;
+          delta1Hint = `<div class="arb-slot-delta ok">ок</div>`;
+        }
+      }
+
+      // Собираем слоты как ссылки
+      function slotLink(url, isCgp, platformSrc, teamName, bestOdds, betHtml, deltaHtml) {
+        const platLabel = platformSrc === 'cgp' ? 'CSGOPOSITIVE' : 'WINLINE';
+        if (isCgp) {
+          // CGP: нет прямых ссылок — data-атрибут для JS-обработчика
+          return `<a href="#" class="arb-bet-link slot-${platformSrc}"
+            data-cgp-match="${matchStr.replace(/"/g,'&quot;')}"
+            onclick="openCgp(this);return false;">
+            <div class="arb-slot-platform">
+              <span class="arb-platform-dot ${platformSrc}"></span>
+              <span class="arb-platform-name">${platLabel}</span>
+              <span style="font-size:7px;color:var(--dim);margin-left:4px" title="Откроет главную + скопирует название">📋</span>
+            </div>
+            <div class="arb-slot-mkt">${mktName}</div>
+            <div class="arb-slot-team">${teamName}</div>
+            <div class="arb-slot-odds">${bestOdds.toFixed(2)}</div>
+            ${betHtml}${deltaHtml || ''}
+          </a>`;
+        }
+        return `<a href="${url}" target="_blank" rel="noopener" class="arb-bet-link slot-${platformSrc}">
+          <div class="arb-slot-platform">
+            <span class="arb-platform-dot ${platformSrc}"></span>
+            <span class="arb-platform-name">${platLabel}</span>
+          </div>
+          <div class="arb-slot-mkt">${mktName}</div>
+          <div class="arb-slot-team">${teamName}</div>
+          <div class="arb-slot-odds">${bestOdds.toFixed(2)}</div>
+          ${betHtml}${deltaHtml || ''}
+        </a>`;
+      }
+
+      return `<div class="arb-card ${isFork ? 'fork' : 'prefork'}">
+        <div class="arb-card-header">
+          <div class="arb-card-meta">
+            <span class="arb-sport-badge sport-${sportCls(sport)}">${sportLbl}</span>
+            <span class="arb-mkt-lbl">${mktLbl}</span>
+            ${liveLbl}
+          </div>
+          <div class="arb-card-result">${resultHtml}</div>
+          ${ageHtml}
+        </div>
+        <div class="arb-card-teams">${cgp.home_team} <span class="vs">VS</span> ${cgp.away_team}</div>
+        <div class="arb-card-body">
+          ${slotLink(slot1Url, slot1IsCgp, k1_src, team1, best_k1, bet1Html, delta1Hint)}
+          ${slotLink(slot2Url, slot2IsCgp, k2_src, team2, best_k2, bet2Html, delta2Hint)}
+        </div>
+        ${calcFooter}
+      </div>`;
+    }).join('');
+  }
+
+  // ── Layout rendering ──────────────────────────────────────────
+
+  function makeRow(leftEl, rightEl, isMatched) {
+    const row = document.createElement('div');
+    row.className = 'event-row' + (isMatched ? ' matched' : '');
+
+    const left = document.createElement('div');
+    left.className = 'row-slot' + (leftEl ? '' : ' empty');
+    if (leftEl) left.appendChild(leftEl);
+
+    const right = document.createElement('div');
+    right.className = 'row-slot' + (rightEl ? '' : ' empty');
+    if (rightEl) right.appendChild(rightEl);
+
+    row.appendChild(left);
+    row.appendChild(right);
+    return row;
+  }
+
+  function makeSectionDivider(label) {
+    const div = document.createElement('div');
+    div.className = 'section-divider';
+    div.innerHTML = `
+      <div class="section-divider-label">${label}</div>
+      <div class="section-divider-label"></div>`;
+    return div;
+  }
+
+  function renderLayout() {
+    const { matched, unmatchedCgp, unmatchedWl } = computeMatches();
+    const main = document.getElementById('main');
+
+    main.innerHTML = '';
+
+    if (Object.keys(events).length === 0) {
+      main.innerHTML = `<div class="empty-main">
+        <span class="empty-dot"></span><span class="empty-dot"></span><span class="empty-dot"></span>
+        <p>ОЖИДАНИЕ ДАННЫХ</p></div>`;
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+
+    // Разделяем совпавшие пары по статусу (live vs pre-live)
+    const matchedLive    = matched.filter(({ cgp, wl }) =>
+      cgp.status !== 'upcoming' || wl.status !== 'upcoming');
+    const matchedPrelive = matched.filter(({ cgp, wl }) =>
+      cgp.status === 'upcoming' && wl.status === 'upcoming');
+
+    // 1. СОВПАВШИЕ LIVE пары
+    if (matchedLive.length > 0) {
+      frag.appendChild(makeSectionDivider('СОВПАВШИЕ LIVE'));
+      for (const { cgp, wl } of matchedLive) {
+        frag.appendChild(makeRow(cardEls[cgp.event_id], cardEls[wl.event_id], true));
+      }
+    }
+
+    // 2. СОВПАВШИЕ PRE-LIVE пары
+    if (matchedPrelive.length > 0) {
+      frag.appendChild(makeSectionDivider('СОВПАВШИЕ PRE-LIVE'));
+      for (const { cgp, wl } of matchedPrelive) {
+        frag.appendChild(makeRow(cardEls[cgp.event_id], cardEls[wl.event_id], true));
+      }
+    }
+
+    // Несовпавшие — делим по статусу
+    const unmatchedCgpLive    = unmatchedCgp.filter(e => e.status !== 'upcoming');
+    const unmatchedCgpPrelive = unmatchedCgp.filter(e => e.status === 'upcoming');
+    const unmatchedWlLive     = unmatchedWl.filter(e => e.status !== 'upcoming');
+    const unmatchedWlPrelive  = unmatchedWl.filter(e => e.status === 'upcoming');
+
+    const hasUnmatchedLive    = unmatchedCgpLive.length > 0 || unmatchedWlLive.length > 0;
+    const hasUnmatchedPrelive = unmatchedCgpPrelive.length > 0 || unmatchedWlPrelive.length > 0;
+
+    // 3. ОСТАЛЬНЫЕ LIVE
+    if (hasUnmatchedLive) {
+      frag.appendChild(makeSectionDivider('ОСТАЛЬНЫЕ LIVE'));
+      const maxLen = Math.max(unmatchedCgpLive.length, unmatchedWlLive.length);
+      for (let i = 0; i < maxLen; i++) {
+        const cgpEl = unmatchedCgpLive[i] ? cardEls[unmatchedCgpLive[i].event_id] : null;
+        const wlEl  = unmatchedWlLive[i]  ? cardEls[unmatchedWlLive[i].event_id]  : null;
+        frag.appendChild(makeRow(cgpEl, wlEl, false));
+      }
+    }
+
+    // 4. ОСТАЛЬНЫЕ PRE-LIVE
+    if (hasUnmatchedPrelive) {
+      frag.appendChild(makeSectionDivider('ОСТАЛЬНЫЕ PRE-LIVE'));
+      const maxLen = Math.max(unmatchedCgpPrelive.length, unmatchedWlPrelive.length);
+      for (let i = 0; i < maxLen; i++) {
+        const cgpEl = unmatchedCgpPrelive[i] ? cardEls[unmatchedCgpPrelive[i].event_id] : null;
+        const wlEl  = unmatchedWlPrelive[i]  ? cardEls[unmatchedWlPrelive[i].event_id]  : null;
+        frag.appendChild(makeRow(cgpEl, wlEl, false));
+      }
+    }
+
+    main.appendChild(frag);
+    updateCounts(matched, unmatchedCgp, unmatchedWl);
+  }
+
+  function updateCounts(matched, unmatchedCgp, unmatchedWl) {
+    const allCgp = [...matched.map(m => m.cgp), ...unmatchedCgp];
+    const allWl  = [...matched.map(m => m.wl),  ...unmatchedWl];
+
+    const cgpLive = allCgp.filter(e => e.status !== 'upcoming').length;
+    const cgpPre  = allCgp.filter(e => e.status === 'upcoming').length;
+    const wlLive  = allWl.filter(e => e.status !== 'upcoming').length;
+    const wlPre   = allWl.filter(e => e.status === 'upcoming').length;
+
+    document.getElementById('count-cgp-live').textContent = cgpLive;
+    document.getElementById('count-cgp-pre').textContent  = cgpPre;
+    document.getElementById('count-wl-live').textContent  = wlLive;
+    document.getElementById('count-wl-pre').textContent   = wlPre;
+  }
+
+  // ── Market HTML ───────────────────────────────────────────────
+
+  const SPORT_LABELS = {
+    dota2:'D2', dota_2:'D2', 'dota 2':'D2',
+    cs2:'CS2', 'counter-strike':'CS2', 'counter-strike 2':'CS2',
+    lol:'LOL', league_of_legends:'LOL', 'league of legends':'LOL', 'league':'LOL',
+    valorant:'VAL',
+    ml:'ML', 'mobile legends':'ML', 'mobile':'ML',
+  };
+
+  function sportBadgeLabel(sport) {
+    return SPORT_LABELS[sport.toLowerCase()] || normSport(sport).toUpperCase().slice(0,3) || '?';
+  }
+
+  function marketLabel(type, period) {
+    if (type === 'match_winner') return 'МАТЧ';
+    const m = period.match(/map_(\d+)/);
+    // Было: return m ? `К.${m[1]}` : period.toUpperCase();
+    return m ? `КАРТА ${m[1]}` : period.toUpperCase();
+  }
+
+  function oddsKey(eid, mtype, period, outcome) { return `${eid}:${mtype}:${period}:${outcome}`; }
+  function cellId(eid, mtype, period, outcome)  { return `c_${eid}_${mtype}_${period}_${outcome}`; }
+
+  function buildMarketsHtml(ev) {
+    let html = '';
+    for (const m of ev.markets) {
+      const home = m.outcomes.find(o => o.outcome_type === 'home');
+      const away = m.outcomes.find(o => o.outcome_type === 'away');
+      if (!home || !away) continue;
+      const label  = marketLabel(m.market_type, m.period);
+      const isLive = m.is_live !== false;
+      const badge  = isLive
+        ? `<span class="mkt-badge live-badge">LIVE</span>`
+        : `<span class="mkt-badge pre-badge">PRE</span>`;
+      const hId = cellId(ev.event_id, m.market_type, m.period, 'home');
+      const aId = cellId(ev.event_id, m.market_type, m.period, 'away');
+
+      // --- ЛОГИКА ЗАМОЧКОВ: Если питон прислал 0, рисуем 🔒 вместо цифр ---
+      const hOdds = (home.odds > 0) ? home.odds.toFixed(2) : '🔒';
+      const aOdds = (away.odds > 0) ? away.odds.toFixed(2) : '🔒';
+
+      html += `
+        <div class="market-row">
+          <span class="market-label">${badge}${label}</span>
+          <div class="odds-cell" id="${hId}">
+            <span class="odds-arrow"></span>
+            <span class="odds-value">${hOdds}</span>
+            <span class="odds-prev"></span>
+          </div>
+          <div class="odds-cell right" id="${aId}">
+            <span class="odds-prev"></span>
+            <span class="odds-value">${aOdds}</span>
+            <span class="odds-arrow"></span>
+          </div>
+        </div>`;
+    }
+    return html || `<div class="market-row"><span class="market-label" style="color:var(--dim)">—</span></div>`;
+  }
+
+  function buildCardEl(ev) {
+    const sport   = ev.sport || '';
+    const cls     = sportCls(sport);
+    const badge   = sportBadgeLabel(sport);
+    const tourney = ev.tournament.replace(/_/g,' ').toUpperCase();
+    const homeShort = ev.home_team.split(' ')[0];
+    const awayShort = ev.away_team.split(' ').pop();
+    const isPrelive = ev.status === 'upcoming';
+    const statusPill = isPrelive
+      ? `<span class="prelive-pill">●PRE</span>`
+      : `<span class="live-pill">●LIVE</span>`;
+    const statusCls = isPrelive ? ' status-upcoming' : '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = `
+      <div class="card sport-${cls}${statusCls}" id="card_${ev.event_id}">
+        <div class="card-header">
+          <span class="sport-badge sport-${cls}">${badge}</span>
+          <span class="tournament-name">${tourney}</span>
+          ${statusPill}
+        </div>
+        <div class="teams-row">
+          <span class="team home">${ev.home_team}</span>
+          <span class="vs-sep">VS</span>
+          <span class="team away">${ev.away_team}</span>
+        </div>
+        <div class="markets" id="markets_${ev.event_id}">
+          <div class="market-col-header">
+            <span class="col-label"></span>
+            <span class="col-label">${homeShort}</span>
+            <span class="col-label right">${awayShort}</span>
+          </div>
+          ${buildMarketsHtml(ev)}
+        </div>
+        <div class="card-footer">
+          <span class="last-update" id="upd_${ev.event_id}">—</span>
+        </div>
+      </div>`.trim();
+    return tmp.firstChild;
+  }
+
+  // ── Flash ─────────────────────────────────────────────────────
+
+  function flashCell(cell, newVal, prevVal) {
+    const valEl   = cell.querySelector('.odds-value');
+    const prevEl  = cell.querySelector('.odds-prev');
+    const arrowEl = cell.querySelector('.odds-arrow');
+
+    // Если рынок закрыт (пришло 0)
+    if (newVal === 0) {
+      valEl.textContent = '🔒';
+      arrowEl.textContent = '';
+      prevEl.textContent = '';
+      cell.classList.remove('up','down','flash-up','flash-down');
+      return;
+    }
+
+    // Если рынок открылся или кэф изменился
+    valEl.textContent = newVal.toFixed(2);
+
+    // Если до этого был замок, а теперь кэф — просто показываем кэф без стрелок
+    if (prevVal === 0) {
+      arrowEl.textContent = '';
+      prevEl.textContent = '';
+    } else if (newVal > prevVal) {
+      arrowEl.textContent = '↑'; prevEl.textContent = prevVal.toFixed(2);
+      cell.classList.remove('down','flash-down'); cell.classList.add('up','flash-up');
+    } else if (newVal < prevVal) {
+      arrowEl.textContent = '↓'; prevEl.textContent = prevVal.toFixed(2);
+      cell.classList.remove('up','flash-up'); cell.classList.add('down','flash-down');
+    }
+
+    setTimeout(() => cell.classList.remove('up','down','flash-up','flash-down'), 1900);
+  }
+
+  // ── Process / Remove ──────────────────────────────────────────
+
+  function processEvent(ev) {
+    const isNew = !events[ev.event_id];
+    const oldEvent = events[ev.event_id];
+    const statusChanged = !isNew && oldEvent.status !== ev.status;
+
+    if (isNew || statusChanged) {
+      events[ev.event_id] = ev;
+      events[ev.event_id]._updatedAt = Date.now();  // Время последнего обновления
+      cardEls[ev.event_id] = buildCardEl(ev);
+      for (const m of ev.markets)
+        for (const o of m.outcomes)
+          odds[oddsKey(ev.event_id, m.market_type, m.period, o.outcome_type)] = o.odds;
+      renderLayout();
+      scheduleArbs();  // RAF: не чаще одного раза за кадр
+    } else {
+      events[ev.event_id] = ev;
+      events[ev.event_id]._updatedAt = Date.now();  // Обновляем время при каждом апдейте
+
+      const oldPeriods = new Set(oldEvent.markets.map(m => m.period + ':' + m.market_type));
+      const newPeriods = new Set(ev.markets.map(m => m.period + ':' + m.market_type));
+      const hasNewMarkets     = [...newPeriods].some(p => !oldPeriods.has(p));
+      const hasRemovedMarkets = [...oldPeriods].some(p => !newPeriods.has(p));
+
+      if (hasNewMarkets || hasRemovedMarkets) {
+        const marketsEl = document.getElementById(`markets_${ev.event_id}`);
+        if (marketsEl) {
+          const homeShort = ev.home_team.split(' ')[0];
+          const awayShort = ev.away_team.split(' ').pop();
+          marketsEl.innerHTML = `
+            <div class="market-col-header">
+              <span class="col-label"></span>
+              <span class="col-label">${homeShort}</span>
+              <span class="col-label right">${awayShort}</span>
+            </div>
+            ${buildMarketsHtml(ev)}`;
+        }
+        for (const m of ev.markets)
+          for (const o of m.outcomes)
+            odds[oddsKey(ev.event_id, m.market_type, m.period, o.outcome_type)] = o.odds;
+      } else {
+        for (const m of ev.markets) {
+          for (const o of m.outcomes) {
+            const key = oddsKey(ev.event_id, m.market_type, m.period, o.outcome_type);
+            const prevOdds = odds[key];
+            if (prevOdds !== o.odds) {
+              const cell = document.getElementById(cellId(ev.event_id, m.market_type, m.period, o.outcome_type));
+              if (cell) flashCell(cell, o.odds, prevOdds || 0);
+              odds[key] = o.odds;
+            }
+          }
+        }
+      }
+
+      scheduleArbs();  // RAF: все быстрые апдейты → один пересчёт за кадр
+    }
+
+    const upd = document.getElementById(`upd_${ev.event_id}`);
+    if (upd) upd.textContent = new Date().toLocaleTimeString('ru-RU', {hour12: false});
+  }
+
+  function removeEvent(event_id) {
+    const card = cardEls[event_id];
+    if (card) { card.style.opacity = '0'; }
+    setTimeout(() => {
+      delete events[event_id];
+      delete cardEls[event_id];
+      for (const key of Object.keys(odds))
+        if (key.startsWith(event_id + ':')) delete odds[key];
+      renderLayout();
+      scheduleArbs();
+    }, 400);
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────
+
+  const connDot = document.getElementById('connDot');
+  const connLabel = document.getElementById('connLabel');
+
+  function connect() {
+    const ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen  = () => { connDot.className='conn-dot live'; connLabel.textContent='LIVE'; };
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'update') processEvent(msg.data);
+        else if (msg.type === 'remove') removeEvent(msg.event_id);
+      } catch(err) { console.error(err); }
+    };
+    ws.onclose = () => { connDot.className='conn-dot error'; connLabel.textContent='РЕКОННЕКТ...'; setTimeout(connect,2000); };
+    ws.onerror = () => { connDot.className='conn-dot error'; connLabel.textContent='ОШИБКА'; };
+  }
+
+  // Открыть CSGOPositive + скопировать название матча в буфер
+  function openCgp(el) {
+    const match = el.getAttribute('data-cgp-match') || '';
+    navigator.clipboard.writeText(match).then(() => {
+      showToast(`📋 Скопировано: ${match}`);
+    }).catch(() => {});
+    window.open('https://csgopositive.xyz/', '_blank');
+  }
+
+  // Toast уведомление
+  function showToast(text) {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.style.cssText = `
+        position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+        background:rgba(11,14,21,0.95); border:1px solid rgba(0,224,122,0.4);
+        color:#00e07a; font-family:'Martian Mono',monospace; font-size:9px;
+        padding:8px 16px; letter-spacing:0.1em; z-index:9999;
+        pointer-events:none; opacity:0; transition:opacity 0.2s;
+      `;
+      document.body.appendChild(t);
+    }
+    t.textContent = text;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2500);
+  }
+
+  document.getElementById('preforkThreshold').addEventListener('input', computeArbs);
+
+  connect();
+</script>
+</body>
+</html>

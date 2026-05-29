@@ -1,0 +1,61 @@
+<div class="modal bets" id="bet_next" data-percent="1">
+	<a href="#" class="btn gray small close"></a>
+	<div class="bet_heading">
+		<div class="discipline_icon"><span class="lol_icon"></span></div><div class="bet_timer">01:50:13</div><div class="bet_event">LPL<br><b>BO3</b></div>
+	</div>
+	<div class="modal_content">
+		<div class="content">
+			<a href="#bet" class="m_open bet_back">Назад</a>
+			<div class="big_image_bg"></div>
+			<div class="team_info">
+				<div class="koef_bet">
+					<div class="team_logo"><img decoding="async" src="/img/img_placeholder.png"></div>
+					<div class="team_right">
+					<span class="team_name">...</span><span class="bet_type">...</span><br class="mobile_small">
+					</div>
+				</div>
+			</div>
+			<input id="gem_koef" type="hidden">
+			<form autocomplete="off" id="place_bet">
+				<input autocomplete="off" type="hidden" id="gem_bet" name="gem" value="0">
+				<input autocomplete="off" type="hidden" id="eid" name="event_id" value="221236">
+				<input autocomplete="off" type="hidden" id="bt" name="bet_type">
+				<input autocomplete="off" type="hidden" id="tid" name="team_id" value="1">
+				<input autocomplete="off" type="hidden" id="oid" name="oid" value="">
+				<input autocomplete="off" type="hidden" id="koef_val" name="koef_val">
+				<input autocomplete="off" type="hidden" id="live_hash" name="live_hash">
+				<input autocomplete="off" type="hidden" id="live_id" name="live_id">
+				<input autocomplete="off" type="hidden" id="freebet_id" name="freebet_id" value="0">
+				
+				<input type="hidden" id="" name="hash" value="MTQ1YzVlNjM5OTA3NWI0YmM4NWZiYjAyZGJjNjAyYjU0MTIyYTExYg==">
+				<div class="bet_info">
+					<span><i class="bet_koef">~</i><b>Коэффициент</b>
+						<div id="odds_change"><span></span><b>Принимать изменения</b></div>									
+					</span>
+					<div class="center_bet">
+						<div class="shortcuts">
+														<a href="#" data-amount="-500">-500</a>
+							<a href="#" data-amount="-100">-100</a>
+							<a href="#" data-amount="100">+100</a>
+							<a href="#" data-amount="500">+500</a>
+							<a href="#" data-amount="max">max</a>
+													</div>
+													<input autocomplete="off" type="number" min="0" step="1" inputmode="numeric" id="bet_sum_input" name="sum" value=""><!--
+						 --><div id="bet_currency" class="small_select">
+								<a href="#" class="selected_betcurrency selected"><i class="rr"></i></a>
+								<div class="betcurrency_dropdown dropdown">
+									<a href="#" data-value="0"><i class="rr"></i></a>
+									<a href="#" data-value="1"><i class="gems"></i></a>
+								</div>
+							</div>								
+												<input type="submit" style="display:none !important;" value="Сделать ставку">		
+						<a href="#" id="place_bet_btn">Сделать ставку</a>	
+					</div>
+					<span><i class="bet_win potential">≈<i class="rr"></i></i><b>Выигрыш</b><a href="#" class="tip"><span>Коэффициент может изменяться вплоть до начала выбранного события</span></a></span>
+				</div>
+			
+				<div class="status"></div>					
+			</form>		
+		</div>
+	</div>
+</div>

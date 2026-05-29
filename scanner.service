@@ -1,0 +1,24 @@
+[Unit]
+Description=Арб-сканер CSGOPositive + Winline
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scanner
+WorkingDirectory=/opt/scanner
+ExecStart=/opt/scanner/venv/bin/python server.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/opt/scanner/scanner.log
+StandardError=append:/opt/scanner/scanner.log
+
+# Лимиты памяти — при превышении systemd убивает и перезапускает
+MemoryMax=2G
+MemorySwapMax=0
+
+# Переменные окружения если нужны
+# Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

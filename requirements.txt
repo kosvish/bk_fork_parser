@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+websockets>=11.0
+playwright
+psutil
+orjson
+uvloop          # Linux/Mac event loop (замена winloop)
+winloop ; sys_platform == "win32"   # Windows только

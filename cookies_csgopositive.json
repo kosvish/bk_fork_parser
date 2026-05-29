@@ -1,0 +1,10 @@
+[
+  { "domain": ".csgopositive.xyz", "name": "__ddg1_", "value": "6ZQTV37hcHVIWGpCXiXM", "path": "/", "secure": false, "httpOnly": true },
+  { "domain": ".csgopositive.xyz", "name": "__ddg10_", "value": "1779716336", "path": "/", "secure": false, "httpOnly": false },
+  { "domain": ".csgopositive.xyz", "name": "__ddg8_", "value": "jDZhXnnfwbF563Ik", "path": "/", "secure": false, "httpOnly": false },
+  { "domain": ".csgopositive.xyz", "name": "__ddg9_", "value": "95.173.199.67", "path": "/", "secure": false, "httpOnly": false },
+  { "domain": ".csgopositive.xyz", "name": "_ga", "value": "GA1.1.619203420.1779713780", "path": "/", "secure": false, "httpOnly": false },
+  { "domain": ".csgopositive.xyz", "name": "auth", "value": "4d54517a4e44426b4e7a4d325954566c4d4759345a44526b593255314e545131597a5a695a4467354e324d795a5441314d32493159324d784d6a566a5a4467304d6d51335a6a466c4d44646c4f57466a4d6a64684e513d3d", "path": "/", "secure": true, "httpOnly": false },
+  { "domain": "csgopositive.xyz", "name": "auth", "value": "4d54517a4e44426b4e7a4d325954566c4d4759345a44526b593255314e545131597a5a695a4467354e324d795a5441314d32493159324d784d6a566a5a4467304d6d51335a6a466c4d44646c4f57466a4d6a64684e513d3d", "path": "/", "secure": false, "httpOnly": false },
+  { "domain": "csgopositive.xyz", "name": "PHPSESSID", "value": "b7de1c4b7a6f052c6fb34dbeea1a2b3b", "path": "/", "secure": false, "httpOnly": false }
+]

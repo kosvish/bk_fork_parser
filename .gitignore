@@ -1,0 +1,5 @@
+.idea
+__pycache__/
+.claude/
+memory_log.csv
+memory_log.txt
