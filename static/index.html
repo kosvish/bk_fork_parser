@@ -391,11 +391,10 @@
   .arb-card.fork   .arb-card-type { color: var(--up); opacity: 0.7; }
   .arb-card.prefork .arb-card-type { color: var(--cs); opacity: 0.7; }
 
-  /* card body: two bet slots — flexbox надёжнее grid для <a> элементов */
+  /* card body: два слота строго 50/50 */
   .arb-card-body {
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
   .arb-bet-slot {
     padding: 8px 10px 10px;
@@ -526,8 +525,6 @@
 
   /* ── НОВОЕ: Ссылка-слот (кликабельный) ── */
   .arb-bet-link {
-    flex: 1;           /* равные половины */
-    min-width: 0;      /* предотвращает переполнение flex-item */
     display: block !important;
     text-decoration: none !important;
     color: var(--text) !important;
@@ -536,6 +533,7 @@
     transition: background 0.15s;
     box-sizing: border-box;
     overflow: hidden;
+    min-width: 0;
   }
   .arb-bet-link:visited { color: var(--text) !important; }
   .arb-bet-link:hover { background: rgba(255,255,255,0.03); color: var(--text) !important; }
