@@ -524,11 +524,16 @@
 
   /* ── НОВОЕ: Ссылка-слот (кликабельный) ── */
   .arb-bet-link {
-    display: block; text-decoration: none; color: inherit;
+    display: block !important;
+    text-decoration: none !important;
+    color: var(--text) !important;   /* явный цвет — <a> может игнорировать inherit */
+    background: transparent;
     padding: 8px 10px 10px;
     transition: background 0.15s;
+    box-sizing: border-box;
   }
-  .arb-bet-link:hover { background: rgba(255,255,255,0.03); }
+  .arb-bet-link:visited { color: var(--text) !important; }
+  .arb-bet-link:hover { background: rgba(255,255,255,0.03); color: var(--text) !important; }
   .arb-bet-link:first-child { border-right: 1px solid var(--border); }
   .arb-bet-link .arb-slot-platform { margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
   /* Переопределяем padding для slot внутри ссылки */
@@ -538,8 +543,15 @@
   }
   .arb-card-body .arb-bet-link.slot-cgp .arb-slot-mkt { color: rgba(155,109,255,0.7); }
   .arb-card-body .arb-bet-link.slot-wl  .arb-slot-mkt { color: rgba(0,198,255,0.7); }
-  .arb-card-body .arb-bet-link.slot-cgp .arb-platform-name { color: var(--cgp-col); }
-  .arb-card-body .arb-bet-link.slot-wl  .arb-platform-name { color: var(--wl-col); }
+  .arb-card-body .arb-bet-link.slot-cgp .arb-platform-name { color: var(--cgp-col) !important; }
+  .arb-card-body .arb-bet-link.slot-wl  .arb-platform-name { color: var(--wl-col)  !important; }
+  /* Гарантируем видимость текста в WL слоте на всех браузерах */
+  .arb-bet-link.slot-wl .arb-slot-team  { color: var(--text)  !important; }
+  .arb-bet-link.slot-wl .arb-slot-odds  { color: var(--text)  !important; }
+  .arb-bet-link.slot-wl .arb-slot-mkt   { color: rgba(0,198,255,0.8) !important; }
+  .arb-bet-link.slot-wl .arb-slot-bet   { color: var(--label) !important; }
+  .arb-card.fork   .arb-bet-link.slot-wl .arb-slot-odds { color: var(--up)   !important; }
+  .arb-card.prefork .arb-bet-link.slot-wl .arb-slot-odds { color: var(--text) !important; }
 </style>
 </head>
 <body>
@@ -1202,8 +1214,8 @@
            </div>`;
 
       // 4. Суммы ставок в слотах
-      const bet1Html = `<div class="arb-slot-bet">Ставь: <span class="bet-sum">${bets.s1} ₽</span></div>`;
-      const bet2Html = `<div class="arb-slot-bet">Ставь: <span class="bet-sum">${bets.s2} ₽</span></div>`;
+      const bet1Html = `<div class="arb-slot-bet" style="margin-bottom:2px">Ставь: <span class="bet-sum">${bets.s1} ₽</span></div>`;
+      const bet2Html = `<div class="arb-slot-bet" style="margin-bottom:2px">Ставь: <span class="bet-sum">${bets.s2} ₽</span></div>`;
 
       // 5. Прямые ссылки на БК
       // WL: формат /stavki/sport/kibersport/{игра}/{турнир}/{id}
