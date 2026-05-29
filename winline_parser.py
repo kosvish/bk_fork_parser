@@ -72,15 +72,12 @@ READ_ALL_EVENTS_JS = """
         const nameWrapper = compDiv.querySelector('.body-left__names, [class*="names"]');
         let teams = [];
         if (nameWrapper) {
-            // На Linux Chrome innerText может не содержать \n между дочерними div.
-            // Берём имена команд напрямую из дочерних элементов — надёжнее split('\n').
             const nameEls = nameWrapper.querySelectorAll('.name, [class*="name"]');
             if (nameEls.length >= 2) {
-                teams = [...nameEls].map(el => el.innerText.trim()).filter(Boolean);
+                teams = [...nameEls].map(function(el){ return el.innerText.trim(); }).filter(Boolean);
             }
-            // Фоллбэк: split по любым переносам строк
             if (teams.length < 2) {
-                teams = nameWrapper.innerText.trim().split(/\\n+/).map(t => t.trim()).filter(Boolean);
+                teams = nameWrapper.innerText.trim().split(/\n+/).map(function(t){ return t.trim(); }).filter(Boolean);
             }
         }
         if (teams.length < 2) continue;
