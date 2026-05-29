@@ -72,12 +72,17 @@ READ_ALL_EVENTS_JS = """
         const nameWrapper = compDiv.querySelector('.body-left__names, [class*="names"]');
         let teams = [];
         if (nameWrapper) {
-            const nameEls = nameWrapper.querySelectorAll('.name, [class*="name"]');
-            if (nameEls.length >= 2) {
-                teams = [...nameEls].map(function(el){ return el.innerText.trim(); }).filter(Boolean);
+            var ch = nameWrapper.children;
+            for (var ci = 0; ci < ch.length && teams.length < 2; ci++) {
+                var t = ch[ci].innerText.trim();
+                if (t) teams.push(t);
             }
             if (teams.length < 2) {
-                teams = nameWrapper.innerText.trim().split(/\\n+/).map(function(t){ return t.trim(); }).filter(Boolean);
+                var parts = nameWrapper.innerText.trim().split(/\\n+/);
+                for (var pi = 0; pi < parts.length && teams.length < 2; pi++) {
+                    var p = parts[pi].trim();
+                    if (p) teams.push(p);
+                }
             }
         }
         if (teams.length < 2) continue;
@@ -207,8 +212,8 @@ def _build_event(raw: dict) -> Optional[Event]:
         event_id=f"wl_{raw['eventId']}",
         sport=raw.get("sport", ""),
         tournament=raw.get("tournament", ""),
-        home_team=raw["homeTeam"],
-        away_team=raw["awayTeam"],
+        home_team=raw.get("homeTeam", ""),
+        away_team=raw.get("awayTeam", ""),
         status=EventStatus.LIVE if is_live else EventStatus.UPCOMING,
         markets=markets,
     )
