@@ -640,9 +640,10 @@ class CSGOPositiveParser:
             const closedBets = [];
 
             // ── 1. LIVE события ──────────────────────────────────────────────
-            // CGP убрал классы live_betting / line_event.
-            // Теперь все активные события: event csgo_event, event valorant_event, etc.
-            // Исключаем: finished_event (завершённые), live_betting_upcoming (ставки не открыты)
+            // CGP убрал live_betting / line_event. Теперь сортируем по data-start:
+            //   data-start в прошлом (или нет таймера) → LIVE (матч идёт)
+            //   data-start ≤ 20 мин в будущем          → PRE-LIVE
+            //   data-start > 20 мин                    → пропускаем
             const liveSelector = '.event[data-id]:not(.finished_event):not(.live_betting_upcoming)';
             for (const ev of document.querySelectorAll(liveSelector)) {
                 const eid = ev.getAttribute('data-id');
@@ -651,41 +652,33 @@ class CSGOPositiveParser:
 
                 const teams = ev.querySelectorAll('a.m_open');
                 if (teams.length < 2) {
-                    // Событие существует (.live_betting), но кнопки ставок исчезли →
-                    // ставка ЗАКРЫТА (DOM отражает это мгновенно)
+                    // Событие есть, но кнопки ставок исчезли → ставка закрыта
                     closedBets.push(eid);
                     continue;
                 }
-                live.push(buildEventData(ev, teams));
-                liveIds.add(eid);
-            }
 
-            // ── 2. PRE-LIVE: события без .live_betting, таймер ≤ 20 мин ────
-            // Это матчи которые скоро начнутся и ставки ещё не открылись
-            // на CSGOPositive, но могут быть открыты на Winline.
-            for (const ev of document.querySelectorAll('.event:not(.live_betting)[data-id]')) {
-                const eid = ev.getAttribute('data-id');
-                if (!eid || liveIds.has(eid)) continue;
-                if (ev.classList.contains('finished') || ev.classList.contains('completed')) continue;
-
-                // Берём таймер с атрибутом data-start для точного расчёта
+                // Определяем статус по таймеру data-start
                 const timerEl = ev.querySelector('span.timer.timer_active');
-                if (!timerEl) continue;
+                let secsToStart = null;
+                if (timerEl) {
+                    const ds = timerEl.getAttribute('data-start');
+                    if (ds) {
+                        secsToStart = Math.floor((new Date(ds).getTime() - Date.now()) / 1000);
+                    }
+                }
 
-                const dataStart = timerEl.getAttribute('data-start');
-                if (!dataStart) continue;
-
-                const secsToStart = Math.floor(
-                    (new Date(dataStart).getTime() - Date.now()) / 1000
-                );
-                // Матч уже начался или начнётся более чем через 20 мин — пропускаем
-                if (secsToStart <= 0 || secsToStart > PRELIVE_MAX_SECS) continue;
-
-                const teams = ev.querySelectorAll('a.m_open');
-                if (teams.length < 2) continue;
-
-                prelife.push({ ...buildEventData(ev, teams), secsToStart });
+                if (secsToStart === null || secsToStart <= 0) {
+                    // Нет таймера или время прошло → матч идёт (LIVE)
+                    live.push(buildEventData(ev, teams));
+                    liveIds.add(eid);
+                } else if (secsToStart <= PRELIVE_MAX_SECS) {
+                    // Скоро начнётся → PRE-LIVE
+                    prelife.push({ ...buildEventData(ev, teams), secsToStart });
+                }
+                // else: матч далеко → пропускаем
             }
+
+            // PRE-LIVE теперь определяется в том же цикле выше через data-start
 
             return { live, prelife, closedBets };
         }
