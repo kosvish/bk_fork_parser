@@ -70,9 +70,19 @@ READ_ALL_EVENTS_JS = """
         const eventId = link.href.split('/').pop();
 
         const nameWrapper = compDiv.querySelector('.body-left__names, [class*="names"]');
-        const teams = nameWrapper
-            ? nameWrapper.innerText.trim().split('\\n').map(t => t.trim()).filter(Boolean)
-            : [];
+        let teams = [];
+        if (nameWrapper) {
+            // На Linux Chrome innerText может не содержать \n между дочерними div.
+            // Берём имена команд напрямую из дочерних элементов — надёжнее split('\n').
+            const nameEls = nameWrapper.querySelectorAll('.name, [class*="name"]');
+            if (nameEls.length >= 2) {
+                teams = [...nameEls].map(el => el.innerText.trim()).filter(Boolean);
+            }
+            // Фоллбэк: split по любым переносам строк
+            if (teams.length < 2) {
+                teams = nameWrapper.innerText.trim().split(/\\n+/).map(t => t.trim()).filter(Boolean);
+            }
+        }
         if (teams.length < 2) continue;
 
         // Определяем live vs pre-live по классу карточки
