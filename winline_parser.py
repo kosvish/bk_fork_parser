@@ -77,7 +77,7 @@ READ_ALL_EVENTS_JS = """
                 teams = [...nameEls].map(function(el){ return el.innerText.trim(); }).filter(Boolean);
             }
             if (teams.length < 2) {
-                teams = nameWrapper.innerText.trim().split(/\n+/).map(function(t){ return t.trim(); }).filter(Boolean);
+                teams = nameWrapper.innerText.trim().split(/\\n+/).map(function(t){ return t.trim(); }).filter(Boolean);
             }
         }
         if (teams.length < 2) continue;
