@@ -398,9 +398,22 @@
   }
   .arb-bet-slot {
     padding: 8px 10px 10px;
-    position: relative;
+    box-sizing: border-box;
+    overflow: hidden;
+    min-width: 0;
+    color: var(--text);
+    transition: background 0.15s;
   }
+  .arb-bet-slot:hover { background: rgba(255,255,255,0.03); }
   .arb-bet-slot:first-child { border-right: 1px solid var(--border); }
+  .arb-bet-slot.slot-cgp .arb-platform-name { color: var(--cgp-col); }
+  .arb-bet-slot.slot-wl  .arb-platform-name { color: var(--wl-col); }
+  .arb-bet-slot.slot-cgp .arb-slot-mkt { color: rgba(155,109,255,0.7); }
+  .arb-bet-slot.slot-wl  .arb-slot-mkt { color: rgba(0,198,255,0.8); }
+  .arb-bet-slot.slot-cgp .arb-slot-bet .bet-sum { color: var(--cgp-col); }
+  .arb-bet-slot.slot-wl  .arb-slot-bet .bet-sum { color: var(--wl-col); }
+  .arb-card.fork   .arb-bet-slot .arb-slot-odds { color: var(--up); }
+  .arb-card.prefork .arb-bet-slot .arb-slot-odds { color: var(--text); }
 
   /* platform header inside slot */
   .arb-slot-platform {
@@ -1250,54 +1263,21 @@
         }
       }
 
-      // Собираем слоты как ссылки
-      function slotLink(url, isCgp, platformSrc, teamName, bestOdds, betHtml, deltaHtml) {
+      // Слоты как <div> — гарантированно работают в CSS Grid на всех платформах
+      // <a> внутри grid ломается в Chrome на Linux из-за display:block конфликта
+      function slotDiv(url, isCgp, platformSrc, teamName, bestOdds, betHtml, deltaHtml) {
         const platLabel = platformSrc === 'cgp' ? 'CSGOPOSITIVE' : 'WINLINE';
-        if (isCgp) {
-          // CGP: нет прямых ссылок — data-атрибут для JS-обработчика
-          return `<a href="#" class="arb-bet-link slot-${platformSrc}"
-            data-cgp-match="${matchStr.replace(/"/g,'&quot;')}"
-            onclick="openCgp(this);return false;">
-            <div class="arb-slot-platform">
-              <span class="arb-platform-dot ${platformSrc}"></span>
-              <span class="arb-platform-name">${platLabel}</span>
-              <span style="font-size:7px;color:var(--dim);margin-left:4px" title="Откроет главную + скопирует название">📋</span>
-            </div>
-            <div class="arb-slot-mkt">${mktName}</div>
-            <div class="arb-slot-team">${teamName}</div>
-            <div class="arb-slot-odds">${bestOdds.toFixed(2)}</div>
-            ${betHtml}${deltaHtml || ''}
-          </a>`;
-        }
-        return `<a href="${url}" target="_blank" rel="noopener" class="arb-bet-link slot-${platformSrc}">
-          <div class="arb-slot-platform">
-            <span class="arb-platform-dot ${platformSrc}"></span>
-            <span class="arb-platform-name">${platLabel}</span>
-          </div>
-          <div class="arb-slot-mkt">${mktName}</div>
-          <div class="arb-slot-team">${teamName}</div>
-          <div class="arb-slot-odds">${bestOdds.toFixed(2)}</div>
-          ${betHtml}${deltaHtml || ''}
-        </a>`;
+        const clickHandler = isCgp
+          ? `onclick="openCgp(this)" data-cgp-match="${matchStr.replace(/"/g,'&quot;')}" style="cursor:pointer"`
+          : `onclick="window.open('${url}','_blank')" style="cursor:pointer"`;
+        return `<div class="arb-bet-slot slot-${platformSrc}" ${clickHandler}><div class="arb-slot-platform"><span class="arb-platform-dot ${platformSrc}"></span><span class="arb-platform-name">${platLabel}</span>${isCgp ? '<span style="font-size:7px;color:var(--dim);margin-left:4px">📋</span>' : ''}</div><div class="arb-slot-mkt">${mktName}</div><div class="arb-slot-team">${teamName}</div><div class="arb-slot-odds">${bestOdds.toFixed(2)}</div>${betHtml}${deltaHtml || ''}</div>`;
       }
 
-      return `<div class="arb-card ${isFork ? 'fork' : 'prefork'}">
-        <div class="arb-card-header">
-          <div class="arb-card-meta">
-            <span class="arb-sport-badge sport-${sportCls(sport)}">${sportLbl}</span>
-            <span class="arb-mkt-lbl">${mktLbl}</span>
-            ${liveLbl}
-          </div>
-          <div class="arb-card-result">${resultHtml}</div>
-          ${ageHtml}
-        </div>
-        <div class="arb-card-teams">${cgp.home_team} <span class="vs">VS</span> ${cgp.away_team}</div>
-        <div class="arb-card-body">
-          ${slotLink(slot1Url, slot1IsCgp, k1_src, team1, best_k1, bet1Html, delta1Hint)}
-          ${slotLink(slot2Url, slot2IsCgp, k2_src, team2, best_k2, bet2Html, delta2Hint)}
-        </div>
-        ${calcFooter}
-      </div>`;
+      // Слоты соединяем БЕЗ пробелов — пробелы в grid создают text nodes и ломают 1fr 1fr
+      const slot1Html = slotDiv(slot1Url, slot1IsCgp, k1_src, team1, best_k1, bet1Html, delta1Hint);
+      const slot2Html = slotDiv(slot2Url, slot2IsCgp, k2_src, team2, best_k2, bet2Html, delta2Hint);
+
+      return `<div class="arb-card ${isFork ? 'fork' : 'prefork'}"><div class="arb-card-header"><div class="arb-card-meta"><span class="arb-sport-badge sport-${sportCls(sport)}">${sportLbl}</span><span class="arb-mkt-lbl">${mktLbl}</span>${liveLbl}</div><div class="arb-card-result">${resultHtml}</div>${ageHtml}</div><div class="arb-card-teams">${cgp.home_team} <span class="vs">VS</span> ${cgp.away_team}</div><div class="arb-card-body">${slot1Html}${slot2Html}</div>${calcFooter}</div>`;
     }).join('');
   }
 
