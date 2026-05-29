@@ -640,7 +640,10 @@ class CSGOPositiveParser:
             const closedBets = [];
 
             // ── 1. LIVE события ──────────────────────────────────────────────
-            const liveSelector = '.event.live_betting[data-id], .event.line_event:not(.live_betting)[data-id]';
+            // CGP убрал классы live_betting / line_event.
+            // Теперь все активные события: event csgo_event, event valorant_event, etc.
+            // Исключаем: finished_event (завершённые), live_betting_upcoming (ставки не открыты)
+            const liveSelector = '.event[data-id]:not(.finished_event):not(.live_betting_upcoming)';
             for (const ev of document.querySelectorAll(liveSelector)) {
                 const eid = ev.getAttribute('data-id');
                 if (!eid) continue;
