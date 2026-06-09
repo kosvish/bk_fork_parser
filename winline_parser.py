@@ -271,7 +271,6 @@ class WinlineParser:
             self._prelive_page = await self._context.new_page()
             await self._prelive_page.goto(EVENTS_LIST_URL, wait_until="domcontentloaded", timeout=30000)
             await asyncio.sleep(3)
-            print("[WL] Pre-live scanner: страница создана")
         except Exception as e:
             print(f"[WL] Pre-live scanner: не удалось создать страницу: {e}")
             return

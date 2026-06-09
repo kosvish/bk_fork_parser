@@ -18,8 +18,10 @@ if sys.platform == "win32":
 else:
     import uvloop as _loop_lib
 
-
 MEM_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory_log.csv")
+_dirty: set[str] = set()
+_removed: set[str] = set()
+
 
 async def memory_monitor(interval_seconds=60):
     """
@@ -68,7 +70,7 @@ async def memory_monitor(interval_seconds=60):
         peak_mb = max(peak_mb, total_mb)
 
         cgp_count = len(cgp._events) if cgp else 0
-        wl_count  = len(winline._last_state) if winline else 0
+        wl_count = len(winline._last_state) if winline else 0
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         row = f"{ts},{total_mb:.1f},{peak_mb:.1f},{py_mb:.1f},{chrome_mb:.1f},{cgp_count},{wl_count},{len(clients)}\n"
@@ -119,16 +121,48 @@ async def broadcast(data: str):
 
 def on_update(event: Event):
     d = event.to_dict()
-    state[event.event_id] = d
-    # orjson.dumps возвращает bytes, поэтому делаем decode
-    raw_bytes = json.dumps({"type": "update", "data": d})
-    asyncio.ensure_future(broadcast(raw_bytes.decode('utf-8')))
+    state[event.event_id] = d  # keep latest snapshot
+    _dirty.add(event.event_id)  # mark dirty; flush loop sends it
+    _removed.discard(event.event_id)
 
 
 def on_remove(event_id: str):
     state.pop(event_id, None)
-    raw_bytes = json.dumps({"type": "remove", "event_id": event_id})
-    asyncio.ensure_future(broadcast(raw_bytes.decode('utf-8')))
+    _dirty.discard(event_id)
+    _removed.add(event_id)
+
+
+async def _flush_loop(interval: float = 0.1):
+    """Coalesce all odds changes and broadcast at a fixed tick.
+    Hundreds of koef_change/sec collapse into ≤10 sends/sec per event,
+    so the event loop never backs up and latency stays ≤ interval."""
+    while True:
+        await asyncio.sleep(interval)
+        if not _dirty and not _removed:
+            continue
+        ids = list(_dirty);
+        _dirty.clear()
+        gone = list(_removed);
+        _removed.clear()
+
+        msgs = []
+        for eid in ids:
+            d = state.get(eid)
+            if d is not None:
+                msgs.append(json.dumps({"type": "update", "data": d}).decode("utf-8"))
+        for eid in gone:
+            msgs.append(json.dumps({"type": "remove", "event_id": eid}).decode("utf-8"))
+
+        if not msgs:
+            continue
+        dead = set()
+        for ws in list(clients):
+            try:
+                for m in msgs:
+                    await ws.send_text(m)
+            except Exception:
+                dead.add(ws)
+        clients.difference_update(dead)
 
 
 async def memory_watchdog(threshold_mb: int = 1500):
@@ -153,7 +187,7 @@ async def memory_watchdog(threshold_mb: int = 1500):
             pass  # Linux-контейнер без доступа к дочерним процессам
 
         if total_mb > threshold_mb * 2:
-            print(f"[WATCHDOG] ⛔ КРИТИЧНО: {total_mb:.0f}MB > {threshold_mb*2}MB — завершаем процесс")
+            print(f"[WATCHDOG] ⛔ КРИТИЧНО: {total_mb:.0f}MB > {threshold_mb * 2}MB — завершаем процесс")
             os._exit(1)  # supervisor/systemd перезапустит
         elif total_mb > threshold_mb:
             print(f"[WATCHDOG] ⚠️  {total_mb:.0f}MB > {threshold_mb}MB — запускаем GC")
@@ -173,6 +207,7 @@ async def startup():
     global winline, cgp
     asyncio.create_task(memory_monitor(interval_seconds=60))
     asyncio.create_task(memory_watchdog(threshold_mb=1500))
+    asyncio.create_task(_flush_loop(0.1))
     cfg = _load_config()
     cgp_user = cfg.get("cgp_username")
     cgp_pass = cfg.get("cgp_password")

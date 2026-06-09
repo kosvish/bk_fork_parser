@@ -28,6 +28,11 @@ APP_ID_TO_GAME: dict[str, str] = {
     "570": "dota2", "103": "valorant", "21595": "valorant"
 }
 
+# Разбор <a>-тегов из ответа bets.php (для pre-live карт)
+_BETS_A_RE = re.compile(r"<a\b([^>]*)>")
+_BETS_MAP_TEXT_RE = re.compile(r"^Победа на карте #(\d+)$")
+
+
 def _bt_to_period(bet_type: str) -> Optional[Period]:
     """Быстрое преобразование bet_type в Period"""
     bt = bet_type
@@ -47,6 +52,7 @@ def _bt_to_period(bet_type: str) -> Optional[Period]:
         pass
     return None
 
+
 @dataclass
 class _EventState:
     """Состояние события с поддержкой LIVE/PRELIFE"""
@@ -64,13 +70,14 @@ class _EventState:
     # Время последнего WebSocket-обновления для каждого рынка
     market_last_ws: dict = field(default_factory=dict)
 
+
 class CSGOPositiveParser:
     def __init__(
-        self,
-        on_update: Callable[[Event], None],
-        on_remove: Optional[Callable[[str], None]] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+            self,
+            on_update: Callable[[Event], None],
+            on_remove: Optional[Callable[[str], None]] = None,
+            username: Optional[str] = None,
+            password: Optional[str] = None,
     ):
         self._on_update = on_update
         self._on_remove = on_remove
@@ -116,6 +123,7 @@ class CSGOPositiveParser:
             'gc_collections': 0,
             'updates_sent': 0,
         }
+        self._reloading = False
 
     async def start(self):
         """Запуск парсера"""
@@ -178,7 +186,24 @@ class CSGOPositiveParser:
             await route.continue_()
 
         await self._context.route("**/*", route_handler)
-
+        try:
+            from pathlib import Path as _Path
+            _cpath = _Path("cookies_csgopositive.json")
+            if _cpath.exists():
+                _raw = json.loads(_cpath.read_text(encoding="utf-8"))
+                _fix = {"strict": "Strict", "lax": "Lax", "none": "None",
+                        "no_restriction": "None", "unspecified": "Lax"}
+                for _c in _raw:
+                    _c["sameSite"] = _fix.get(str(_c.get("sameSite", "")).lower(), "Lax")
+                    if _c.get("expires") in (None, -1):
+                        _c.pop("expires", None)
+                await self._context.add_cookies(_raw)
+                self._logged_in = True
+                print(f"[CGP] ✅ Cookies загружены: {len(_raw)} — сессия активна")
+            else:
+                pass
+        except Exception as _e:
+            print(f"[CGP] ⚠️ Ошибка загрузки cookies: {_e}")
         self._ws_page = await self._context.new_page()
         self._ws_page.on("websocket", self._on_websocket)
 
@@ -191,7 +216,7 @@ class CSGOPositiveParser:
         await self._ws_page.evaluate("window.scrollTo(0, 0)")
         await asyncio.sleep(0.5)
 
-        if self._username and self._password:
+        if not self._logged_in and self._username and self._password:
             await self._login()
 
         # Прямой WS — основной канал получения кэфов (быстро, без браузерного оверхеда)
@@ -200,8 +225,9 @@ class CSGOPositiveParser:
         # Синхронизация событий и очистка памяти
         asyncio.ensure_future(self._sync_events_loop())
         asyncio.ensure_future(self._cleanup_loop())
+        asyncio.ensure_future(self._betsphp_poll_loop())
 
-        print("[CGP] ✅ Запущен (прямой WS + Playwright backup)")
+
 
     async def stop(self):
         """Остановка"""
@@ -242,9 +268,9 @@ class CSGOPositiveParser:
         while self._running:
             try:
                 async with websockets.connect(
-                    uri,
-                    ping_interval=None,
-                    max_size=2 * 1024 * 1024,
+                        uri,
+                        ping_interval=None,
+                        max_size=2 * 1024 * 1024,
                 ) as ws:
                     frames_received = 0
 
@@ -332,6 +358,8 @@ class CSGOPositiveParser:
         event_id = obj.get("id")
         bet_type = obj.get("bet_type", "")
 
+
+
         period = _bt_to_period(bet_type)
         if period is None or event_id not in self._events:
             return
@@ -369,6 +397,7 @@ class CSGOPositiveParser:
         # Обновляем состояние + трекаем время последнего WS-обновления
         state = self._events[event_id]
         state.market_odds[period] = (k1, k2, is_open, is_live)
+
         state.market_last_ws[period] = time.monotonic()  # Отметка времени получения
 
         # ← КРИТИЧНО: отправляем обновление
@@ -385,6 +414,9 @@ class CSGOPositiveParser:
     async def _sync_events_loop(self):
         """Синхронизация LIVE и PRELIFE событий"""
         while self._running:
+            if self._reloading:
+                await asyncio.sleep(1)
+                continue
             try:
                 if not self._ws_page or self._ws_page.is_closed():
                     break
@@ -444,18 +476,10 @@ class CSGOPositiveParser:
                         if k1 > 1.0 and k2 > 1.0 and Period.FULL_MATCH in state.market_odds:
                             old_k1, old_k2, old_is_open, old_is_live = state.market_odds[Period.FULL_MATCH]
                             if not old_is_open:
-                                # Рынок закрыт WS. Проверяем: не завис ли замок?
-                                # Если WS закрыл >30 сек назад и DOM показывает
-                                # валидные кэфы — значит ставка реально открыта,
-                                # просто WS не прислал reopen (кэфы не изменились).
-                                closed_at = self._ws_closed_at.get((eid, Period.FULL_MATCH), 0)
-                                if time.monotonic() - closed_at > 30:
-                                    is_mkt_live = (new_status == "LIVE")
-                                    state.market_odds[Period.FULL_MATCH] = (k1, k2, True, is_mkt_live)
-                                    cache_k = (eid, Period.FULL_MATCH)
-                                    self._odds_cache[cache_k] = (round(k1, 3), round(k2, 3), True)
-                                    self._ws_closed_at.pop(cache_k, None)
-                                    self._on_update(self._build_event(state))
+                                # Рынок закрыт по WS — НЕ трогаем. Только WS решает,
+                                # когда открыть обратно (придёт status=0). DOM не знает
+                                # о замках, поэтому из него рынок не разлипаем.
+                                pass
                             elif abs(old_k1 - k1) > 0.001 or abs(old_k2 - k2) > 0.001:
                                 # Рынок открыт, кэф изменился в DOM → обновляем
                                 is_mkt_live = (new_status == "LIVE")
@@ -516,69 +540,22 @@ class CSGOPositiveParser:
                     print(f"[CGP] Buffer replay done. Events with odds: "
                           f"{sum(1 for s in self._events.values() if s.market_odds)}")
 
-                # ── Проверка на "протухшие" live-рынки ───────────────────────────
-                # Если live-рынок не получал WS-обновлений дольше порога —
-                # значит CSGOPositive закрыл его БЕЗ отправки status=1.
-                #
-                # Пороги разные по дисциплинам:
-                #   CS2/Valorant: раунды ~2 мин, кэфы меняются часто → порог 2-3 мин
-                #   Dota2/LoL:    игра непрерывная, кэфы могут быть стабильны 5-10 мин
-                #   ML/Other:     5 минут как разумный дефолт
-                STALE_BY_GAME = {
-                    "cs2":      60,    # 1 мин — раунды короткие, кэфы меняются часто
-                    "valorant": 90,    # 1.5 мин
-                    "dota2":    180,   # 3 мин — игра длиннее, но обновления есть
-                    "lol":      180,   # 3 мин
-                    "ml":       120,   # 2 мин
-                }
-                STALE_DEFAULT = 120  # 2 мин для неизвестных игр
-
-                now_m = time.monotonic()
-                startup_age = now_m - self._start_time
                 stale_count = 0
-                for state in self._events.values():
-                    stale_limit_live    = STALE_BY_GAME.get(state.game, STALE_DEFAULT)
-                    stale_limit_prelive = 180  # Pre-live маркеты: 3 минуты
-                    for period, (mk1, mk2, mis_open, mis_live) in list(state.market_odds.items()):
-                        if not mis_open:
-                            continue  # Уже закрыт — пропускаем
-                        # is_live=True → обычный threshold по игре
-                        # is_live=False → pre-live threshold (3 мин)
-                        stale_limit = stale_limit_live if mis_live else stale_limit_prelive
-
-                        last_ws = state.market_last_ws.get(period, 0)
-
-                        if last_ws == 0:
-                            # Рынок сидирован только из DOM, WS ещё не подтвердил.
-                            #
-                            # Адаптивный grace period:
-                            #   WS активен и уже получил 5+ фреймов от других рынков
-                            #   → этот рынок явно закрыт → ждём только 10 сек
-                            #
-                            #   WS молчит или только стартует
-                            #   → ждём 30 сек (дольше, но безопаснее)
-                            ws_delivering = self._direct_ws_active and self._direct_ws_frames >= 5
-                            grace = 10 if ws_delivering else 30
-                            if startup_age > grace:
+                if not self._direct_ws_active:
+                    now_m = time.monotonic()
+                    for state in self._events.values():
+                        for period, (mk1, mk2, mis_open, mis_live) in list(state.market_odds.items()):
+                            if not mis_open:
+                                continue
+                            last_ws = state.market_last_ws.get(period, 0)
+                            if last_ws and now_m - last_ws > 90:
                                 state.market_odds[period] = (mk1, mk2, False, mis_live)
                                 self._on_update(self._build_event(state))
                                 stale_count += 1
-                                print(f"[CGP] 🔒 Unconfirmed ({state.game}): "
-                                      f"{state.home_name} vs {state.away_name} | {period.value} "
-                                      f"| WS молчал {startup_age:.0f}с "
-                                      f"(grace={grace}с, ws_frames={self._direct_ws_frames})")
-                        elif now_m - last_ws > stale_limit:
-                            # WS был, но уже давно молчит → рынок закрылся без status=1
-                            state.market_odds[period] = (mk1, mk2, False, mis_live)
-                            self._on_update(self._build_event(state))
-                            stale_count += 1
-                            print(f"[CGP] 🔒 Stale ({state.game}): {state.home_name} vs {state.away_name} "
-                                  f"| {period.value} | нет обновлений {now_m - last_ws:.0f}с")
+                    if stale_count:
+                        print(f"[CGP] ⚠️ WS оборван — заглушено рынков: {stale_count}")
 
-                if prelive_logged:
-                    print(f"[CGP] PRE-LIVE ({len(prelife_events)}): {', '.join(prelive_logged)}")
-                print(f"[CGP] LIVE: {len(live_events)} | PRE-LIVE: {len(prelife_events)} | total: {len(self._events)}"
-                      + (f" | stale closed: {stale_count}" if stale_count else ""))
+
 
             except Exception as e:
                 print(f"[CGP] Sync error: {e}")
@@ -800,6 +777,18 @@ class CSGOPositiveParser:
             # CDP V8 GC каждые 5 минут
             if tick % 5 == 0:
                 await self._cdp_gc()
+            if tick % 20 == 0:
+                self._reloading = True
+                try:
+                    await self._ws_page.goto(MAIN_URL, wait_until="domcontentloaded", timeout=30000)
+                    await asyncio.sleep(2)
+                    self._initial_scan_done = False  # next sync пере-скроллит
+                    await self._cdp_gc()
+                    print("[CGP] ♻️ Страница перезагружена — Chrome heap сброшен")
+                except Exception as e:
+                    print(f"[CGP] reload error: {e}")
+                finally:
+                    self._reloading = False
 
             mem_mb = process.memory_info().rss / 1024 / 1024
             print(f"[CGP] Memory: {mem_mb:.0f} MB | events: {len(self._events)} | cache: {len(self._odds_cache)}")
@@ -810,11 +799,150 @@ class CSGOPositiveParser:
         return self._events
 
     async def _fetch_event_odds(self, eid: str):
-        """Fetch odds from bets.php if logged in (optional enhancement)"""
-        if not self._logged_in:
+        """Сеет коэффициенты из bets.php: серия, карта 1 (live) И будущие карты (pre-live).
+        WS остаётся быстрым апдейтером. bets.php трогает рынок ТОЛЬКО если WS по нему
+        молчал дольше WS_FRESH сек — на активных рынках WS владеет локом и скоростью.
+        Период берём по ТЕКСТУ, замок — по 'disabled'. home=team1, away=team2."""
+        if not self._logged_in or not self._context:
+            return
+        state = self._events.get(eid)
+        if not state:
             return
         try:
-            # Это опциональное улучшение для получения коэффициентов с bets.php
-            pass
-        except:
-            pass
+            home = await self._betsphp_request(eid, 1)  # {Period: (koef, is_open, is_live)}
+            away = await self._betsphp_request(eid, 2)
+        except Exception as e:
+            print(f"[CGP] bets.php fail {eid}: {e}")
+            return
+
+        changed = False
+        now = time.monotonic()
+        WS_FRESH = 25  # сек: WS трогал рынок недавно → bets.php не вмешивается
+        all_p = set(home) | set(away)
+
+        for period in all_p:
+            last_ws = state.market_last_ws.get(period, 0)
+            if last_ws and (now - last_ws) < WS_FRESH:
+                continue  # WS активен на рынке — он владеет локом и скоростью
+            h = home.get(period)
+            a = away.get(period)
+            if not h or not a:
+                continue  # для вилки нужны ОБЕ стороны
+            k1, open1, live1 = h
+            k2, open2, live2 = a
+            is_open = open1 and open2
+            is_live = live1 or live2
+            new_val = (k1, k2, is_open, is_live)
+            if state.market_odds.get(period) != new_val:
+                state.market_odds[period] = new_val
+                self._odds_cache[(eid, period)] = (round(k1, 3), round(k2, 3), is_open)
+                changed = True
+
+        # Закрываем КАРТЫ, исчезнувшие из ответа (серию и WS-свежие не трогаем)
+        for period, (mk1, mk2, mopen, mlive) in list(state.market_odds.items()):
+            if period == Period.FULL_MATCH:
+                continue
+            last_ws = state.market_last_ws.get(period, 0)
+            if last_ws and (now - last_ws) < WS_FRESH:
+                continue
+            if period not in all_p:
+                del state.market_odds[period]
+                self._odds_cache.pop((eid, period), None)
+                state.market_last_ws.pop(period, None)
+                changed = True
+
+
+
+        if changed:
+            self._on_update(self._build_event(state))
+
+    async def _betsphp_request(self, eid: str, team_id: int) -> dict:
+        """Один POST → {Period: (koef, is_open, is_live)} для серии и ВСЕХ карт.
+        Делим ответ на блоки <div class="bet">, внутри каждого берём <a>...</a>
+        ЖАДНО до </a> — иначе вложенный '>' в data-bet_text='<b>LIVE</b>...'
+        обрезает тег и всё ломается. Период по тексту, замок по 'disabled'."""
+        resp = await self._context.request.post(
+            "https://csgopositive.xyz/lib/bets.php",
+            form={"action": "get_koef", "event_id": str(eid),
+                  "team_id": str(team_id), "lang": "RU"},
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://csgopositive.xyz/",
+                "Origin": "https://csgopositive.xyz",
+                "Accept": "*/*",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            },
+            timeout=8000,
+        )
+        if not resp.ok:
+            return {}
+        html = await resp.text()
+
+        out = {}
+        for bet in re.split(r'<div class="bet">', html):
+            a = re.search(r'<a\b(.*?)</a>', bet, re.DOTALL)
+            if not a:
+                continue
+            inner = a.group(1)
+            classes = " ".join(re.findall(r'class="([^"]*)"', inner))
+            if "m_next" not in classes:
+                continue
+            bt = re.search(r'data-bet_text="(.*?)"\s+(?:data-gem|class)', inner, re.DOTALL)
+            text = re.sub(r"<[^>]+>", "", bt.group(1)).strip() if bt else ""
+            text = re.sub(r"^\s*LIVE\s*", "", text).strip()
+
+            data_type = ""
+            dt = re.search(r'data-type="([^"]*)"', inner)
+            if dt:
+                data_type = dt.group(1)
+            is_live_flag = data_type.startswith("live:")
+
+            # Период строго по тексту (data-type плавает — ему не верим)
+            if re.search(r"Победа в (?:серии|матче)", text):
+                period = Period.FULL_MATCH
+            else:
+                mm = re.search(r"Победа на карте #(\d+)", text)
+                if not mm:
+                    continue
+                try:
+                    period = Period(f"map_{int(mm.group(1))}")
+                except ValueError:
+                    continue
+
+            # Коэффициент: data-gem, иначе span ПЕРЕД <a> в этом же блоке
+            gem = re.search(r'data-gem="([\d.]+)"', inner)
+            if gem:
+                koef = float(gem.group(1))
+            else:
+                sp = re.search(r'class="koef[^"]*"[^>]*>\s*([\d.]+)\s*<', bet)
+                if not sp:
+                    continue
+                koef = float(sp.group(1))
+            if koef <= 1.0:
+                continue
+
+            out[period] = (koef, "disabled" not in classes, is_live_flag)
+        return out
+
+    async def _betsphp_poll_loop(self):
+        """Раз в 5с опрашивает LIVE-события через bets.php ради pre-live карт.
+        Запросы размазаны по времени (не все разом), чтобы не долбить сайт."""
+        await asyncio.sleep(8)  # даём логину и событиям подняться
+        while self._running:
+            if not self._logged_in:
+                await asyncio.sleep(5)
+                continue
+            live_ids = [e for e, s in self._events.items() if s.status == "LIVE"]
+
+            if not live_ids:
+                await asyncio.sleep(5)
+                continue
+            delay = max(0.15, 5.0 / len(live_ids))  # размазываем по 5 сек
+            for e in live_ids:
+                if not self._running:
+                    break
+                try:
+                    await self._fetch_event_odds(e)
+                except Exception as ex:
+                    print(f"[CGP] bets.php loop err {e}: {ex}")
+                await asyncio.sleep(delay)

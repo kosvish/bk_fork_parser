@@ -37,8 +37,7 @@ async def explore():
                         "status": response.status,
                         "body": body
                     })
-                    print(f"\n[bets.php] Ответ ({response.status}):")
-                    print(body[:2000])
+
                 except Exception as e:
                     print(f"[bets.php] Ошибка чтения: {e}")
 
@@ -49,7 +48,7 @@ async def explore():
 
         # Читаем подробную структуру DOM первого live события
         live_events = await page.query_selector_all(".event.live_betting")
-        print(f"Live событий: {len(live_events)}")
+
 
         if live_events:
             for i, ev in enumerate(live_events[:3]):
@@ -78,9 +77,7 @@ async def explore():
                         return {{ allEls }};
                     }}
                 """)
-                print(f"\n--- Карточка {eid} (app={app_id}) ---")
-                for el in card_text.get('allEls', []):
-                    print(f"  <{el['tag']} class='{el['class']}'> '{el['text']}'")
+
 
         # Кликаем на team_id=1 первого события
         if live_events:
@@ -88,7 +85,6 @@ async def explore():
             eid = await ev.get_attribute("data-id")
             left = await ev.query_selector("a.left.m_open")
             if left:
-                print(f"\nКликаем на левую команду события {eid}...")
                 await left.click()
                 await asyncio.sleep(4)
 
@@ -99,7 +95,6 @@ async def explore():
             right = await ev.query_selector("a.right.m_open")
             if right:
                 raw_id = await right.get_attribute("data-raw_id")
-                print(f"\nКликаем на правую команду (raw_id={raw_id})...")
                 await right.click()
                 await asyncio.sleep(4)
 
@@ -111,7 +106,6 @@ async def explore():
             json.dumps(bets_responses, ensure_ascii=False, indent=2),
             encoding="utf-8"
         )
-        print(f"\nВсего bets.php ответов: {len(bets_responses)}")
 
         await browser.close()
 

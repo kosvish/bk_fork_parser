@@ -86,9 +86,7 @@ async def explore():
                 });
             }
         """)
-        print(f"Live событий в DOM: {len(events_dom)}")
-        for ev in events_dom:
-            print(f"  [{ev['id']}] app={ev['appId']} '{ev.get('tournament')}' | {ev['home']['name'] if ev['home'] else '?'} vs {ev['away']['name'] if ev['away'] else '?'}")
+
 
         # Кликаем в первое live событие — читаем модал
         live_events = await page.query_selector_all(".event.live_betting")
@@ -139,8 +137,7 @@ async def explore():
                 await page.keyboard.press("Escape")
                 await asyncio.sleep(1)
 
-        # Ждём 2 минуты, собираем все bet_types
-        print(f"\nСобираем bet_types 2 минуты...")
+
         await asyncio.sleep(120)
 
         # Итог
@@ -148,9 +145,7 @@ async def explore():
         for eid, bts in all_koefs.items():
             all_bet_types.update(bts.keys())
 
-        print(f"\n=== Все уникальные bet_type ({len(all_bet_types)}) ===")
-        for bt in sorted(all_bet_types):
-            print(f"  {bt}")
+
 
         print(f"\n=== По событиям ===")
         for eid, bts in sorted(all_koefs.items()):

@@ -32,12 +32,10 @@ async def explore():
         def on_websocket(ws):
             if "odds" not in ws.url:
                 return
-            print(f"[WS odds] Подключение: {ws.url}")
 
             def on_frame(payload):
                 data = payload.body if hasattr(payload, "body") else str(payload)
                 odds_messages.append(data)
-                print(f"  [recv] {str(data)[:300]}")
 
             ws.on("framereceived", on_frame)
 
@@ -51,7 +49,6 @@ async def explore():
         (OUTPUT_DIR / "csgopositive_main.html").write_text(html, encoding="utf-8")
 
         # Исследуем структуру карточек событий
-        print("\n=== Структура .event карточек (первые 5) ===")
         events_data = await page.evaluate("""
             () => {
                 const events = Array.from(document.querySelectorAll('.event')).slice(0, 5);
@@ -67,15 +64,9 @@ async def explore():
                 }));
             }
         """)
-        for i, ev in enumerate(events_data):
-            print(f"\n--- .event #{i+1} ---")
-            print(f"  classes: {ev['classes']}")
-            print(f"  data-attrs: {ev['dataAttrs']}")
-            print(f"  text: {ev['text']}")
-            print(f"  html: {ev['outerHTML']}")
+
 
         # Ищем секцию "Текущие матчи" по тексту
-        print("\n=== Поиск секции текущих матчей ===")
         sections = await page.evaluate("""
             () => {
                 const all = Array.from(document.querySelectorAll('*'));
@@ -93,8 +84,7 @@ async def explore():
                     .slice(0, 10);
             }
         """)
-        for s in sections:
-            print(f"  <{s['tag']} class='{s['class']}'> '{s['text']}'")
+
 
         # Смотрим все [class*="match"] элементы
         print("\n=== [class*='match'] элементы ===")
