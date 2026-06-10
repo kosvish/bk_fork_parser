@@ -839,19 +839,20 @@ class CSGOPositiveParser:
                 changed = True
 
         # Закрываем КАРТЫ, исчезнувшие из ответа (серию и WS-свежие не трогаем)
-        for period, (mk1, mk2, mopen, mlive) in list(state.market_odds.items()):
-            if period == Period.FULL_MATCH:
-                continue
-            last_ws = state.market_last_ws.get(period, 0)
-            if last_ws and (now - last_ws) < WS_FRESH:
-                continue
-            if period not in all_p:
-                del state.market_odds[period]
-                self._odds_cache.pop((eid, period), None)
-                state.market_last_ws.pop(period, None)
-                changed = True
+        if all_p:
+            for period in list(state.market_odds.keys()):
+                if period == Period.FULL_MATCH:
+                    continue
+                if period not in all_p:
+                    del state.market_odds[period]
+                    self._odds_cache.pop((eid, period), None)
+                    state.market_last_ws.pop(period, None)
+                    changed = True
 
-
+        if "BIG" in state.home_name or "B8" in state.home_name or "B8" in state.away_name:
+            print(f"[CGP] 🔎 {state.home_name} vs {state.away_name}")
+            print(f"        market_odds: {[(p.value, o[2]) for p, o in state.market_odds.items()]}")
+            print(f"        bets.php прислал периоды: {[p.value for p in all_p]}")
 
         if changed:
             self._on_update(self._build_event(state))
@@ -877,7 +878,9 @@ class CSGOPositiveParser:
         if not resp.ok:
             return {}
         html = await resp.text()
-
+        if "bet_error" in html or "Слишком частые" in html:
+            print(f"[CGP] ⛔ RATE-LIMIT по eid={eid} team={team_id} — позитив режет частоту")
+            return None
         out = {}
         for bet in re.split(r'<div class="bet">', html):
             a = re.search(r'<a\b(.*?)</a>', bet, re.DOTALL)
