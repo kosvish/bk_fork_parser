@@ -858,7 +858,16 @@ class CSGOPositiveParser:
                 changed = True
 
         # Случай 2: карта пропала из ответа — удаляем (серию не трогаем).
-        # all_p здесь точно непустой (иначе ушли бы в случай 3 выше).
+
+        has_series = Period.FULL_MATCH in all_p
+        has_any_map = any(p != Period.FULL_MATCH for p in all_p)
+        if has_any_map and not has_series and Period.FULL_MATCH in state.market_odds:
+            del state.market_odds[Period.FULL_MATCH]
+            self._odds_cache.pop((eid, Period.FULL_MATCH), None)
+            state.market_last_ws.pop(Period.FULL_MATCH, None)
+            changed = True
+
+        # Случай 2: карта пропала из ответа — удаляем (серию уже обработали выше).
         for period in list(state.market_odds.keys()):
             if period == Period.FULL_MATCH:
                 continue
