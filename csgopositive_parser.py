@@ -799,20 +799,39 @@ class CSGOPositiveParser:
         return self._events
 
     async def _fetch_event_odds(self, eid: str):
-        """Сеет коэффициенты из bets.php: серия, карта 1 (live) И будущие карты (pre-live).
-        WS остаётся быстрым апдейтером. bets.php трогает рынок ТОЛЬКО если WS по нему
-        молчал дольше WS_FRESH сек — на активных рынках WS владеет локом и скоростью.
-        Период берём по ТЕКСТУ, замок — по 'disabled'. home=team1, away=team2."""
+        """Сеет коэффициенты из bets.php. Обрабатывает 3 случая закрытия:
+        1) ставка с замком (disabled) — приходит в ответе, ставим is_open=False;
+        2) карта пропала из ответа — удаляем её;
+        3) 'Нет доступных ставок' (оба ответа пустые) — закрываем ВСЕ рынки замком.
+        Рейт-лимит/сбой (None) — не трогаем ничего."""
         if not self._logged_in or not self._context:
             return
         state = self._events.get(eid)
         if not state:
             return
         try:
-            home = await self._betsphp_request(eid, 1)  # {Period: (koef, is_open, is_live)}
+            home = await self._betsphp_request(eid, 1)  # {Period: (koef, is_open, is_live)} | {} | None
             away = await self._betsphp_request(eid, 2)
         except Exception as e:
             print(f"[CGP] bets.php fail {eid}: {e}")
+            return
+
+        # Рейт-лимит или сбой (None): ответ невалиден — НЕ трогаем рынки.
+        if home is None or away is None:
+            return
+
+        # Случай 3: "Нет доступных ставок" — обе стороны пустые.
+        # Матч идёт, но позитив снял все рынки → закрываем ВСЁ замком (не удаляя),
+        # иначе в сканере висят старые коэффициенты как ложная вилка.
+        if not home and not away:
+            changed = False
+            for period, (mk1, mk2, mopen, mlive) in list(state.market_odds.items()):
+                if mopen:
+                    state.market_odds[period] = (mk1, mk2, False, mlive)
+                    self._odds_cache[(eid, period)] = (round(mk1, 3), round(mk2, 3), False)
+                    changed = True
+            if changed:
+                self._on_update(self._build_event(state))
             return
 
         changed = False
@@ -838,21 +857,16 @@ class CSGOPositiveParser:
                 self._odds_cache[(eid, period)] = (round(k1, 3), round(k2, 3), is_open)
                 changed = True
 
-        # Закрываем КАРТЫ, исчезнувшие из ответа (серию и WS-свежие не трогаем)
-        if all_p:
-            for period in list(state.market_odds.keys()):
-                if period == Period.FULL_MATCH:
-                    continue
-                if period not in all_p:
-                    del state.market_odds[period]
-                    self._odds_cache.pop((eid, period), None)
-                    state.market_last_ws.pop(period, None)
-                    changed = True
-
-        if "BIG" in state.home_name or "B8" in state.home_name or "B8" in state.away_name:
-            print(f"[CGP] 🔎 {state.home_name} vs {state.away_name}")
-            print(f"        market_odds: {[(p.value, o[2]) for p, o in state.market_odds.items()]}")
-            print(f"        bets.php прислал периоды: {[p.value for p in all_p]}")
+        # Случай 2: карта пропала из ответа — удаляем (серию не трогаем).
+        # all_p здесь точно непустой (иначе ушли бы в случай 3 выше).
+        for period in list(state.market_odds.keys()):
+            if period == Period.FULL_MATCH:
+                continue
+            if period not in all_p:
+                del state.market_odds[period]
+                self._odds_cache.pop((eid, period), None)
+                state.market_last_ws.pop(period, None)
+                changed = True
 
         if changed:
             self._on_update(self._build_event(state))
@@ -881,6 +895,8 @@ class CSGOPositiveParser:
         if "bet_error" in html or "Слишком частые" in html:
             print(f"[CGP] ⛔ RATE-LIMIT по eid={eid} team={team_id} — позитив режет частоту")
             return None
+        if "no_available" in html or "Нет доступных ставок" in html:
+            return {}
         out = {}
         for bet in re.split(r'<div class="bet">', html):
             a = re.search(r'<a\b(.*?)</a>', bet, re.DOTALL)
