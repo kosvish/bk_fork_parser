@@ -186,7 +186,7 @@ MUTATION_OBSERVER_JS = """
             _inProgress = true;
             window.__wlChanged();
             _inProgress = false;
-        }, 100);
+        }, 500);
     });
  
     const root = document.querySelector('.events-list, main, body');
