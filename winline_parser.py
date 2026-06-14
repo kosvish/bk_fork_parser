@@ -120,14 +120,27 @@ READ_ALL_EVENTS_JS = """
             const firstMarket = body.querySelector('.card__market');
             if (!firstMarket) continue;
 
-            const btns = firstMarket.querySelectorAll('.coefficient-button_generic2');
-            if (btns.length < 2) continue;
+            // Берём ВСЕ кнопки коэффициентов — и активные, и пустые (закрытые).
+            // Активная: .coefficient-button_generic2 с числом.
+            // Закрытая: .coefficient-button_empty с текстом "-".
+            const allBtns = firstMarket.querySelectorAll('.coefficient-button');
+            if (allBtns.length < 2) continue;
 
-            const k1 = parseFloat(btns[0].innerText.trim());
-            const k2 = parseFloat(btns[1].innerText.trim());
-            if (isNaN(k1) || isNaN(k2) || k1 <= 1 || k2 <= 1) continue;
+            const parseBtn = (btn) => {
+                const txt = btn.innerText.trim();
+                const v = parseFloat(txt);
+                // пустая кнопка (нет числа / класс _empty / текст "-") → рынок закрыт
+                const isEmpty = btn.classList.contains('coefficient-button_empty')
+                                || isNaN(v) || v <= 1;
+                return { v: isNaN(v) ? 0 : v, open: !isEmpty };
+            };
 
-            markets.push({ period, k1, k2 });
+            const b1 = parseBtn(allBtns[0]);
+            const b2 = parseBtn(allBtns[1]);
+            // рынок открыт только если ОБЕ стороны активны
+            const isOpen = b1.open && b2.open;
+
+            markets.push({ period, k1: b1.v, k2: b2.v, isOpen });
         }
 
         if (markets.length === 0) continue;
@@ -194,13 +207,15 @@ def _build_event(raw: dict) -> Optional[Event]:
             MarketType.MATCH_WINNER if period == Period.FULL_MATCH
             else MarketType.MAP_WINNER
         )
+        is_open = m.get("isOpen", True)  # по умолчанию открыт (старые данные без флага)
         markets.append(Market(
             market_type=market_type,
             period=period,
             is_live=is_live,
+            is_open=is_open,
             outcomes=[
-                Outcome(outcome_type=OutcomeType.HOME, odds=m["k1"]),
-                Outcome(outcome_type=OutcomeType.AWAY, odds=m["k2"]),
+                Outcome(outcome_type=OutcomeType.HOME, odds=m["k1"] if is_open else 0),
+                Outcome(outcome_type=OutcomeType.AWAY, odds=m["k2"] if is_open else 0),
             ],
         ))
 
@@ -650,6 +665,7 @@ class WinlineParser:
 
         self._refresh_running = True
         try:
+            await self._force_render_all()  # прокрутка: рендерим ВСЕ события перед чтением
             raw_list: list[dict] = await self._page.evaluate(READ_ALL_EVENTS_JS)
         except Exception as e:
             print(f"[WL] Ошибка чтения DOM: {e}")
