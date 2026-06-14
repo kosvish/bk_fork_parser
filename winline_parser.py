@@ -670,7 +670,11 @@ class WinlineParser:
 
         self._refresh_running = True
         try:
-            await self._force_render_all()  # прокрутка: рендерим ВСЕ события перед чтением
+            # Форс-рендер (прокрутка) дорогой — делаем его не каждый раз, а раз в 5 чтений.
+            # Обычные чтения обновляют видимые кэфы быстро, без прокрутки.
+            # Периодическая прокрутка подхватывает новые карточки ниже экрана.
+            if self._stats['refresh_count'] % 5 == 0:
+                await self._force_render_all()
             raw_list: list[dict] = await self._page.evaluate(READ_ALL_EVENTS_JS)
         except Exception as e:
             print(f"[WL] Ошибка чтения DOM: {e}")
