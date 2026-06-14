@@ -274,6 +274,20 @@ class WinlineParser:
         self._prelive_page: Optional[Page] = None
         self._prelive_wl_ids: set = set()  # IDs найденных pre-live событий
 
+    async def _kill_animations(self):
+        """Отключает CSS-анимации и переходы — Angular гоняет их постоянно,
+        они грузят CPU, но на данные (коэффициенты) не влияют. Чисто визуал."""
+        try:
+            await self._page.add_style_tag(content="""
+                *, *::before, *::after {
+                    animation-duration: 0s !important;
+                    animation-delay: 0s !important;
+                    transition-duration: 0s !important;
+                    transition-delay: 0s !important;
+                }
+            """)
+        except Exception as e:
+            print(f"[WL] kill_animations error: {e}")
     async def _prelive_scan_loop(self):
         """
         Отдельный цикл поиска pre-live событий на Winline.
@@ -427,6 +441,7 @@ class WinlineParser:
 
                 # 6. Кликаем Сейчас чтобы видеть все live дисциплины
                 await self._click_seychas()
+                await self._kill_animations()
 
                 # 7. ЗАНОВО внедряем MutationObserver
                 await self._page.evaluate(MUTATION_OBSERVER_JS)
@@ -554,7 +569,7 @@ class WinlineParser:
         # (Dota2, LoL, Valorant, CS2 и т.д., не только Топ-30)
         # Без этого клика страница показывает только "Топ" (30 событий)
         await self._click_seychas()
-
+        await self._kill_animations()
         # Первичное чтение
         print("[WL] Initial read...")
         await self._refresh()
