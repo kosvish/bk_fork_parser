@@ -129,17 +129,22 @@ READ_ALL_EVENTS_JS = """
             const parseBtn = (btn) => {
                 const txt = btn.innerText.trim();
                 const v = parseFloat(txt);
-                // пустая кнопка (нет числа / класс _empty / текст "-") → рынок закрыт
-                const isEmpty = btn.classList.contains('coefficient-button_empty')
-                                || isNaN(v) || v <= 1;
-                return { v: isNaN(v) ? 0 : v, open: !isEmpty };
+                // Закрыто/нет ставок: знак "-" или класс _empty → для сканера это замок
+                const closed = btn.classList.contains('coefficient-button_empty') || txt === '-';
+                // Открыто: есть валидное число
+                const hasNumber = !isNaN(v) && v > 1;
+                // Не отрендерено: пусто, но это НЕ "-" (Angular не дорисовал на медленном сервере)
+                const notRendered = !closed && !hasNumber;
+                return { v: hasNumber ? v : 0, open: hasNumber, closed: closed, notRendered: notRendered };
             };
 
             const b1 = parseBtn(allBtns[0]);
             const b2 = parseBtn(allBtns[1]);
-            // рынок открыт только если ОБЕ стороны активны
+            // Не отрендерено (пусто, но не "-") → пропускаем, чтобы не словить ложный
+            // замок на медленном сервере. Старое значение сохранится до след. чтения.
+            if (b1.notRendered || b2.notRendered) continue;
+            // Открыт только если ОБЕ стороны — валидные числа. Если хоть одна "-" → замок.
             const isOpen = b1.open && b2.open;
-
             markets.push({ period, k1: b1.v, k2: b2.v, isOpen });
         }
 
