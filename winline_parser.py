@@ -441,7 +441,7 @@ class WinlineParser:
 
                 # 6. Кликаем Сейчас чтобы видеть все live дисциплины
                 await self._click_seychas()
-                await self._kill_animations()
+
 
                 # 7. ЗАНОВО внедряем MutationObserver
                 await self._page.evaluate(MUTATION_OBSERVER_JS)
@@ -569,7 +569,7 @@ class WinlineParser:
         # (Dota2, LoL, Valorant, CS2 и т.д., не только Топ-30)
         # Без этого клика страница показывает только "Топ" (30 событий)
         await self._click_seychas()
-        await self._kill_animations()
+
         # Первичное чтение
         print("[WL] Initial read...")
         await self._refresh()
