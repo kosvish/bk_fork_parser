@@ -186,7 +186,7 @@ MUTATION_OBSERVER_JS = """
             _inProgress = true;
             window.__wlChanged();
             _inProgress = false;
-        }, 500);
+        }, 100);
     });
  
     const root = document.querySelector('.events-list, main, body');
@@ -274,20 +274,6 @@ class WinlineParser:
         self._prelive_page: Optional[Page] = None
         self._prelive_wl_ids: set = set()  # IDs найденных pre-live событий
 
-    async def _kill_animations(self):
-        """Отключает CSS-анимации и переходы — Angular гоняет их постоянно,
-        они грузят CPU, но на данные (коэффициенты) не влияют. Чисто визуал."""
-        try:
-            await self._page.add_style_tag(content="""
-                *, *::before, *::after {
-                    animation-duration: 0s !important;
-                    animation-delay: 0s !important;
-                    transition-duration: 0s !important;
-                    transition-delay: 0s !important;
-                }
-            """)
-        except Exception as e:
-            print(f"[WL] kill_animations error: {e}")
     async def _prelive_scan_loop(self):
         """
         Отдельный цикл поиска pre-live событий на Winline.
@@ -441,7 +427,6 @@ class WinlineParser:
 
                 # 6. Кликаем Сейчас чтобы видеть все live дисциплины
                 await self._click_seychas()
-
 
                 # 7. ЗАНОВО внедряем MutationObserver
                 await self._page.evaluate(MUTATION_OBSERVER_JS)
@@ -685,11 +670,7 @@ class WinlineParser:
 
         self._refresh_running = True
         try:
-            # Форс-рендер (прокрутка) дорогой — делаем его не каждый раз, а раз в 5 чтений.
-            # Обычные чтения обновляют видимые кэфы быстро, без прокрутки.
-            # Периодическая прокрутка подхватывает новые карточки ниже экрана.
-            if self._stats['refresh_count'] % 5 == 0:
-                await self._force_render_all()
+            await self._force_render_all()
             raw_list: list[dict] = await self._page.evaluate(READ_ALL_EVENTS_JS)
         except Exception as e:
             print(f"[WL] Ошибка чтения DOM: {e}")
