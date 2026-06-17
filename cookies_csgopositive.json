@@ -15,7 +15,7 @@
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1781294731.792666,
+    "expirationDate": 1781704556.759517,
     "hostOnly": false,
     "httpOnly": false,
     "name": "__ddg10_",
@@ -24,12 +24,12 @@
     "secure": false,
     "session": false,
     "storeId": "0",
-    "value": "1781293536",
+    "value": "1781699498",
     "id": 2
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1781294731.792511,
+    "expirationDate": 1781704556.759421,
     "hostOnly": false,
     "httpOnly": false,
     "name": "__ddg8_",
@@ -38,12 +38,12 @@
     "secure": false,
     "session": false,
     "storeId": "0",
-    "value": "WO6f7TfbpHkBAgGJ",
+    "value": "K2XEeYzqUDYUFj6M",
     "id": 3
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1781294731.792735,
+    "expirationDate": 1781704556.759558,
     "hostOnly": false,
     "httpOnly": false,
     "name": "__ddg9_",
@@ -57,7 +57,7 @@
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1815853530.856737,
+    "expirationDate": 1816259490.128223,
     "hostOnly": false,
     "httpOnly": false,
     "name": "_ga",
@@ -71,7 +71,7 @@
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1815853530.856543,
+    "expirationDate": 1816259490.141666,
     "hostOnly": false,
     "httpOnly": false,
     "name": "_ga_B0KYC8K09B",
@@ -80,7 +80,7 @@
     "secure": false,
     "session": false,
     "storeId": "0",
-    "value": "GS2.1.s1781290378$o45$g1$t1781293530$j60$l0$h0",
+    "value": "GS2.1.s1781699480$o50$g1$t1781699490$j50$l0$h0",
     "id": 6
 },
 {
@@ -99,7 +99,7 @@
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1789069122.609086,
+    "expirationDate": 1789475489.939031,
     "hostOnly": false,
     "httpOnly": false,
     "name": "auth",
@@ -108,12 +108,26 @@
     "secure": true,
     "session": false,
     "storeId": "0",
-    "value": "4e5459334e6d51314e4751344f5751794d47466a4d54566b4e4459335a6d4d7a5a6d45794d6d59354f54466c4e474534596a51314d4467324d5449794d475979597a41795a5441324d546b355a6a517a4f5451305a673d3d",
+    "value": "597a59794d444130595449785a44557a59544a684f5459325a574d794e5455334e7a41324d6a49784e7a4d784e3249304e6d566a4f5467304f5755344f44426c4e444d3459324e6b5a5452694e4467304e7a51314f513d3d",
     "id": 8
 },
 {
     "domain": ".csgopositive.xyz",
-    "expirationDate": 1811965530,
+    "expirationDate": 1781736002,
+    "hostOnly": false,
+    "httpOnly": false,
+    "name": "exclude_low_tier",
+    "path": "/",
+    "sameSite": "unspecified",
+    "secure": false,
+    "session": false,
+    "storeId": "0",
+    "value": "0",
+    "id": 9
+},
+{
+    "domain": ".csgopositive.xyz",
+    "expirationDate": 1812371490,
     "hostOnly": false,
     "httpOnly": false,
     "name": "fixed_chat",
@@ -123,7 +137,7 @@
     "session": false,
     "storeId": "0",
     "value": "true",
-    "id": 9
+    "id": 10
 },
 {
     "domain": ".csgopositive.xyz",
@@ -137,7 +151,7 @@
     "session": false,
     "storeId": "0",
     "value": "1",
-    "id": 10
+    "id": 11
 },
 {
     "domain": ".csgopositive.xyz",
@@ -151,11 +165,11 @@
     "session": false,
     "storeId": "0",
     "value": "true",
-    "id": 11
+    "id": 12
 },
 {
     "domain": "csgopositive.xyz",
-    "expirationDate": 1789069122.609059,
+    "expirationDate": 1789475489.939007,
     "hostOnly": true,
     "httpOnly": false,
     "name": "auth",
@@ -164,12 +178,12 @@
     "secure": false,
     "session": false,
     "storeId": "0",
-    "value": "4e5459334e6d51314e4751344f5751794d47466a4d54566b4e4459335a6d4d7a5a6d45794d6d59354f54466c4e474534596a51314d4467324d5449794d475979597a41795a5441324d546b355a6a517a4f5451305a673d3d",
-    "id": 12
+    "value": "597a59794d444130595449785a44557a59544a684f5459325a574d794e5455334e7a41324d6a49784e7a4d784e3249304e6d566a4f5467304f5755344f44426c4e444d3459324e6b5a5452694e4467304e7a51314f513d3d",
+    "id": 13
 },
 {
     "domain": "csgopositive.xyz",
-    "expirationDate": 1789069531.733491,
+    "expirationDate": 1789475497.686857,
     "hostOnly": true,
     "httpOnly": false,
     "name": "lang",
@@ -179,7 +193,7 @@
     "session": false,
     "storeId": "0",
     "value": "RU",
-    "id": 13
+    "id": 14
 },
 {
     "domain": "csgopositive.xyz",
@@ -191,7 +205,7 @@
     "secure": false,
     "session": true,
     "storeId": "0",
-    "value": "8e54398f9075f5b3fa2ec6afc25ce393",
-    "id": 14
+    "value": "790a4e4e7b3f592b811178f7ca7dda49",
+    "id": 15
 }
 ]

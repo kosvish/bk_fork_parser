@@ -63,10 +63,17 @@ READ_ALL_EVENTS_JS = """
     }
 
     const result = [];
+    const _diag = {
+        cards_competitors: document.querySelectorAll('.card__competitors').length,
+        cards_total: document.querySelectorAll('.card').length,
+        no_link: 0, no_teams: 0, no_card_el: 0, prelive_skip: 0,
+        no_parent: 0, no_bodies: 0, no_markets_in_event: 0, pushed: 0,
+        filter_names: document.querySelectorAll('.cybersport-filter__name').length,
+    };
 
     for (const compDiv of document.querySelectorAll('.card__competitors')) {
         const link = compDiv.querySelector('a[href*="/stavki/event/"]');
-        if (!link) continue;
+        if (!link) { _diag.no_link++; continue; }
         const eventId = link.href.split('/').pop();
 
         const nameWrapper = compDiv.querySelector('.body-left__names, [class*="names"]');
@@ -85,26 +92,27 @@ READ_ALL_EVENTS_JS = """
                 }
             }
         }
-        if (teams.length < 2) continue;
+        if (teams.length < 2) { _diag.no_teams++; continue; }
 
         // Определяем live vs pre-live по классу карточки
         const cardEl = compDiv.closest('.card');
-        if (!cardEl) continue;
+        if (!cardEl) { _diag.no_card_el++; continue; }
         const isLive = cardEl.classList.contains('card--live');
 
         // Для pre-live: проверяем время начала из .header-left__time
         if (!isLive) {
             const timeEl = cardEl.querySelector('.header-left__time');
-            if (!timeEl) continue; // Нет времени — пропускаем
+            if (!timeEl) { _diag.prelive_skip++; continue; } // Нет времени — пропускаем
 
             const secs = parseWinlineTime(timeEl.innerText.trim());
             // Пропускаем если матч не сегодня или начнётся позже чем через 20 мин
-            if (secs > PRELIVE_MAX_SECS) continue;
+            if (secs > PRELIVE_MAX_SECS) { _diag.prelive_skip++; continue; }
         }
 
         const parent = compDiv.parentElement;
-        if (!parent) continue;
+        if (!parent) { _diag.no_parent++; continue; }
         const bodies = parent.querySelectorAll('.card__body');
+        if (bodies.length === 0) { _diag.no_bodies++; }
 
         const markets = [];
         for (const body of bodies) {
@@ -148,7 +156,7 @@ READ_ALL_EVENTS_JS = """
             markets.push({ period, k1: b1.v, k2: b2.v, isOpen });
         }
 
-        if (markets.length === 0) continue;
+        if (markets.length === 0) { _diag.no_markets_in_event++; continue; }
 
         const tournamentBlock = compDiv.closest(
             'ww-feature-block-tournament-dsk, ww-block-tournament-dsk'
@@ -167,8 +175,9 @@ READ_ALL_EVENTS_JS = """
 
         result.push({ eventId, homeTeam: teams[0], awayTeam: teams[1],
                       sport, tournament, markets, isLive });
+        _diag.pushed++;
     }
-    return result;
+    return { events: result, diag: _diag };
 }
 """
 
@@ -186,7 +195,7 @@ MUTATION_OBSERVER_JS = """
             _inProgress = true;
             window.__wlChanged();
             _inProgress = false;
-        }, 100);
+        }, 500);
     });
  
     const root = document.querySelector('.events-list, main, body');
@@ -313,10 +322,15 @@ class WinlineParser:
 
                 # Получаем список вкладок дисциплин (кроме Топ и Сейчас)
                 disciplines = await self._prelive_page.evaluate("""
-                    () => Array.from(document.querySelectorAll('.cybersport-filter__name'))
-                              .map(el => el.innerText.trim())
-                              .filter(t => t && t !== 'Топ' && t !== 'Сейчас')
-                """)
+                                    () => Array.from(document.querySelectorAll('.cybersport-filter__name'))
+                                              .map(el => el.innerText.trim())
+                                              .filter(t => {
+                                                  const x = t.toLowerCase();
+                                                  // Исключаем неактивные/служебные вкладки
+                                                  return t && x !== 'топ' && x !== 'сейчас'
+                                                         && x !== 'live' && x !== 'лайв' && x !== 'главная';
+                                              })
+                                """)
 
                 for disc in disciplines[:20]:
                     try:
@@ -329,7 +343,8 @@ class WinlineParser:
                         await asyncio.sleep(1.5)
 
                         # Читаем все события из этой вкладки
-                        raw_list = await self._prelive_page.evaluate(READ_ALL_EVENTS_JS)
+                        _res = await self._prelive_page.evaluate(READ_ALL_EVENTS_JS)
+                        raw_list = _res.get("events", []) if isinstance(_res, dict) else _res
                         prelive_in_tab = sum(1 for r in raw_list if not r.get('isLive', True))
                         if prelive_in_tab:
                             print(f"[WL] Pre-live scan '{disc}': {prelive_in_tab} событий")
@@ -610,17 +625,20 @@ class WinlineParser:
         """
         try:
             clicked = await self._page.evaluate("""
-                () => {
-                    const filters = document.querySelectorAll('.cybersport-filter__name');
-                    for (const el of filters) {
-                        if (el.innerText.trim() === 'Сейчас') {
-                            el.click();
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-            """)
+                            () => {
+                                const filters = document.querySelectorAll('.cybersport-filter__name');
+                                for (const el of filters) {
+                                    const t = el.innerText.trim().toLowerCase();
+                                    // Winline переименовал "Сейчас" → "LIVE". Ищем оба варианта,
+                                    // плюс защита на будущее, если переименуют ещё раз.
+                                    if (t === 'live' || t === 'сейчас' || t === 'лайв') {
+                                        el.click();
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+                        """)
             if clicked:
                 await asyncio.sleep(3)
                 print("[WL] ✅ Клик 'Сейчас' — показываем все live дисциплины")
@@ -670,14 +688,29 @@ class WinlineParser:
 
         self._refresh_running = True
         try:
-            await self._force_render_all()
-            raw_list: list[dict] = await self._page.evaluate(READ_ALL_EVENTS_JS)
+            if self._stats['refresh_count'] % 5 == 0:
+                await self._force_render_all()
+            _res = await self._page.evaluate(READ_ALL_EVENTS_JS)
+            raw_list: list[dict] = _res.get("events", [])
+            _diag = _res.get("diag", {})
+            print(f"[WL] 🔎 refresh #{self._stats['refresh_count']}: "
+                  f"card__competitors={_diag.get('cards_competitors')}, "
+                  f"card={_diag.get('cards_total')}, "
+                  f"filter_names={_diag.get('filter_names')}, "
+                  f"pushed={_diag.get('pushed')} | "
+                  f"отсев: no_link={_diag.get('no_link')}, no_teams={_diag.get('no_teams')}, "
+                  f"prelive_skip={_diag.get('prelive_skip')}, no_bodies={_diag.get('no_bodies')}, "
+                  f"no_markets={_diag.get('no_markets_in_event')}")
         except Exception as e:
             print(f"[WL] Ошибка чтения DOM: {e}")
             self._refresh_running = False
             return
 
         current_ids = set()
+        for _r in raw_list[:3]:
+            print(f"[WL]    • {_r.get('homeTeam')} vs {_r.get('awayTeam')} "
+                  f"[{'live' if _r.get('isLive') else 'prelive'}]: "
+                  f"{[(m['period'], m['k1'], m['k2'], m.get('isOpen')) for m in _r.get('markets', [])]}")
 
         for raw in raw_list:
             eid = f"wl_{raw['eventId']}"
